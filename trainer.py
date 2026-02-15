@@ -1,6 +1,7 @@
 import argparse
 import curses
 import datetime
+import os
 import random
 import sys
 import time
@@ -9,31 +10,8 @@ from classes import Record
 from problems import create_problems_dict, format_problem_name
 from sessions import save_session_data, format_score, load_session_statistics
 
-# word/number pairs, bilingual pairs
-# japanese pronunciation
-# show progressively and hide
-# traduction, words with translations like anki
-# sequence de symboles et questions sur eg 3eme symbole (up arrow)
-# n-back
-# words/colors
-# distracteurs, mots dans des distracteurs
-# pairs with colors
-# random letters and numbers, remove some, restitute missing
-# une faute dans un mot, restituer le mot correct
-# restituer un anagramme
-# show a sentence one word at a time at speed, then ask question 
-# raw facts like city populations
-
-# structure: sous classes de probleme, fonctions pour poser le probleme et evaluer (
-# plusieurs solutions pour anagrammes)
-# rester sur tache pendant 3 ou 4 rounds puis switcher au hasard
-# short shows
-# complete sentence and restitute n-th word, from beginning, from end
-# decoy or wait before prompt
-# count letters of word
-# add progression based on prior progress
-# add db to store results and analyze them for progress
-# stay on a problem for a while then change
+# Full-screen memory trainer with countdown timers and screen clearing
+# Designed for 2D problems and immersive training experience
 
 checkmark = '\u2713'  # ✓
 cross = '\u2717'  # ✗
@@ -54,6 +32,9 @@ def select_problems_interactively():
   problems = all_problems
   problem_list = sorted(problems.keys(), key=lambda x: x.__name__)
   
+  print("MEMORY TRAINER")
+  print("=" * 55)
+  print()
   print("Available problem types:")
   # Calculate the width needed for the largest number
   max_num_width = len(str(len(problem_list)))
@@ -95,91 +76,318 @@ def select_problems_interactively():
     return None
 
 
+def display_centered_text(stdscr, y, text, color_pair=0):
+  """Display text centered on the screen"""
+  height, width = stdscr.getmaxyx()
+  x = max(0, (width - len(text)) // 2)
+  if 0 <= y < height:
+    try:
+      stdscr.addstr(y, x, text, color_pair)
+    except curses.error:
+      pass  # Ignore if text doesn't fit
+
+
+def display_memorize_phase(stdscr, memorize, exposure_ms, problem_num, total_problems, current_avg, correct_count, session_time):
+  """Display the memorize phase with countdown timer"""
+  height, width = stdscr.getmaxyx()
+  
+  # Display problem info at top
+  problem_info = f"Problem {problem_num}/{total_problems} | Avg: {current_avg:.1f}%"
+  display_centered_text(stdscr, 1, problem_info, curses.color_pair(3))
+  
+  # Display status line with progress and timing
+  minutes, seconds = divmod(int(session_time), 60)
+  status_line = f"Completed: {problem_num-1} / {total_problems} | Correct: {correct_count} | Session time: {minutes}:{seconds:02d}"
+  display_centered_text(stdscr, 2, status_line, curses.color_pair(2))
+  
+  # Display memorize content in center
+  center_y = height // 2
+  
+  # For multi-line content (like pairs or multiline problems), split and center each line
+  if ':' in memorize and 'pair' in str(type(memorize)).lower():
+    lines = memorize.split(' : ')
+    start_y = center_y - len(lines) // 2
+    for i, line in enumerate(lines):
+      display_centered_text(stdscr, start_y + i, line)
+  elif '\n' in memorize:
+    # Handle multiline problems (like flight plans)
+    lines = memorize.split('\n')
+    start_y = center_y - len(lines) // 2
+    for i, line in enumerate(lines):
+      display_centered_text(stdscr, start_y + i, line)
+  else:
+    display_centered_text(stdscr, center_y, memorize)
+  
+  # Display countdown timer
+  countdown_y = center_y + 3
+  
+  steps = 20  # Number of countdown steps
+  step_ms = exposure_ms // steps
+  
+  for i in range(steps, 0, -1):
+    stdscr.clear()
+    
+    # Redisplay problem info
+    display_centered_text(stdscr, 1, problem_info, curses.color_pair(3))
+    
+    # Redisplay status line
+    display_centered_text(stdscr, 2, status_line, curses.color_pair(2))
+    
+    # Redisplay memorize content
+    if ':' in memorize and 'pair' in str(type(memorize)).lower():
+      lines = memorize.split(' : ')
+      start_y = center_y - len(lines) // 2
+      for j, line in enumerate(lines):
+        display_centered_text(stdscr, start_y + j, line)
+    elif '\n' in memorize:
+      # Handle multiline problems (like flight plans)
+      lines = memorize.split('\n')
+      start_y = center_y - len(lines) // 2
+      for j, line in enumerate(lines):
+        display_centered_text(stdscr, start_y + j, line)
+    else:
+      display_centered_text(stdscr, center_y, memorize)
+    
+    # Show countdown
+    remaining_ms = i * step_ms
+    remaining_s = remaining_ms / 1000.0
+    countdown_text = f"Time remaining: {remaining_s:.1f}s"
+    display_centered_text(stdscr, countdown_y, countdown_text, curses.color_pair(2))
+    
+    # Progress bar
+    progress = (steps - i) / steps
+    bar_width = 40
+    filled = int(progress * bar_width)
+    bar = '█' * filled + '░' * (bar_width - filled)
+    display_centered_text(stdscr, countdown_y + 2, f"[{bar}]")
+    
+    stdscr.refresh()
+    curses.napms(step_ms)
+
+
+def display_response_phase(stdscr, prompt, problem_num, total_problems, current_avg, correct_count, session_time):
+  """Display the response phase with increasing timer"""
+  height, width = stdscr.getmaxyx()
+  stdscr.clear()
+  
+  # Display problem info at top
+  problem_info = f"Problem {problem_num}/{total_problems} | Avg: {current_avg:.1f}%"
+  display_centered_text(stdscr, 1, problem_info, curses.color_pair(3))
+  
+  # Display status line with progress and timing
+  minutes, seconds = divmod(int(session_time), 60)
+  status_line = f"Completed: {problem_num-1} / {total_problems} | Correct: {correct_count} | Session time: {minutes}:{seconds:02d}"
+  display_centered_text(stdscr, 2, status_line, curses.color_pair(2))
+  
+  # Display prompt in center
+  center_y = height // 2
+  
+  # Convert arrow symbols
+  display_prompt = prompt
+  if prompt == '>':
+    display_prompt = '→'
+  elif prompt == '<':
+    display_prompt = '←'
+  
+  prompt_text = f"{display_prompt}"
+  display_centered_text(stdscr, center_y - 2, prompt_text)
+  
+  # Input area
+  input_text = "Answer: "
+  input_y = center_y
+  input_x = max(0, (width - len(input_text) - 30) // 2)  # More space for input
+  
+  try:
+    stdscr.addstr(input_y, input_x, input_text)
+  except curses.error:
+    pass
+  
+  # Timer display area
+  timer_y = center_y + 3
+  
+  # Start timing
+  start_time_ns = time.time_ns()
+  
+  # Get user input with custom character-by-character input to show timer
+  user_input = ""
+  input_cursor_x = input_x + len(input_text)
+  
+  # Initial timer display
+  elapsed_ms = 0
+  timer_text = f"Response time: {elapsed_ms:.0f}ms"
+  display_centered_text(stdscr, timer_y, timer_text, curses.color_pair(1))
+  stdscr.move(input_y, input_cursor_x)
+  stdscr.refresh()
+  
+  # Character-by-character input (no auto-advance, user has all the time they need)
+  while True:
+    stdscr.timeout(50)  # 50ms timeout for getch
+    key = stdscr.getch()
+    
+    # Update timer
+    elapsed_ms = (time.time_ns() - start_time_ns) / 1e6
+    timer_text = f"Response time: {elapsed_ms:.0f}ms"
+    
+    # Update session time and redraw status line
+    current_session_time = time.time() - start_time
+    minutes, seconds = divmod(int(current_session_time), 60)
+    updated_status_line = f"Completed: {problem_num-1} / {total_problems} | Correct: {correct_count} | Session time: {minutes}:{seconds:02d}"
+    
+    # Clear and redraw status line
+    stdscr.move(2, 0)
+    stdscr.clrtoeol()
+    display_centered_text(stdscr, 2, updated_status_line, curses.color_pair(2))
+    
+    # Clear timer line and redraw
+    stdscr.move(timer_y, 0)
+    stdscr.clrtoeol()
+    display_centered_text(stdscr, timer_y, timer_text, curses.color_pair(1))
+    
+    if key == -1:  # Timeout, no key pressed
+      stdscr.move(input_y, input_cursor_x + len(user_input))
+      stdscr.refresh()
+      continue
+    elif key == 10 or key == 13:  # Enter key to submit answer
+      break
+    elif key == 127 or key == curses.KEY_BACKSPACE:  # Backspace
+      if user_input:
+        user_input = user_input[:-1]
+        # Clear the input line and redraw
+        stdscr.move(input_y, input_x)
+        stdscr.clrtoeol()
+        stdscr.addstr(input_y, input_x, input_text + user_input)
+    elif 32 <= key <= 126:  # Printable characters
+      user_input += chr(key)
+      stdscr.addch(input_y, input_cursor_x + len(user_input) - 1, key)
+    
+    stdscr.move(input_y, input_cursor_x + len(user_input))
+    stdscr.refresh()
+  
+  stdscr.timeout(-1)  # Reset timeout
+  response_ms = int((time.time_ns() - start_time_ns) / 1e6)
+  return user_input.strip().lower(), response_ms
+
+
+def display_feedback_phase(stdscr, score, solution, user_input, response_ms, exposure_ms):
+  """Display feedback for the answer"""
+  height, width = stdscr.getmaxyx()
+  stdscr.clear()
+  
+  center_y = height // 2
+  
+  # Show result
+  if score == 1.0:
+    result_text = f"{checkmark} CORRECT!"
+    display_centered_text(stdscr, center_y - 2, result_text, curses.color_pair(2))
+  elif score >= 0.7:
+    result_text = f"* CLOSE! ({score:.1%})"
+    display_centered_text(stdscr, center_y - 2, result_text, curses.color_pair(3))
+    display_centered_text(stdscr, center_y, f"Your answer: {user_input}")
+    display_centered_text(stdscr, center_y + 1, f"Correct answer: {solution}")
+  else:
+    result_text = f"{cross} INCORRECT ({score:.1%})"
+    display_centered_text(stdscr, center_y - 2, result_text, curses.color_pair(1))
+    display_centered_text(stdscr, center_y, f"Your answer: {user_input}")
+    display_centered_text(stdscr, center_y + 1, f"Correct answer: {solution}")
+  
+  # Show timing
+  timing_text = f"Study time: {exposure_ms}ms | Response time: {response_ms}ms"
+  display_centered_text(stdscr, center_y + 3, timing_text)
+  
+  stdscr.refresh()
+  
+  # Auto-advance after 0.5 seconds (or allow manual advance with SPACE)
+  start_wait = time.time()
+  feedback_delay = 0.5  # 0.5 seconds to view feedback
+  
+  while True:
+    stdscr.timeout(50)  # 50ms timeout
+    key = stdscr.getch()
+    elapsed = time.time() - start_wait
+    
+    if key == ord(' '):  # Manual advance with SPACE
+      break
+    elif elapsed >= feedback_delay:  # Auto-advance after 0.5 seconds
+      break
+  
+  stdscr.timeout(-1)  # Reset timeout
+
+
 def main(stdscr, max_nr=10, selected_problems=None):
+  global start_time, test_date, records
 
   problems = selected_problems if selected_problems else all_problems
 
-  curses.endwin()  # Temporarily exit curses mode
-  
-  print(f"Starting training session with {max_nr} questions...")
-  input("Press Enter to start...")
-  
-  # Re-initialize curses
-  curses.start_color()
-  curses.use_default_colors()
-  curses.init_pair(1, curses.COLOR_RED, -1)
-  curses.init_pair(2, curses.COLOR_GREEN, -1)
-  curses.init_pair(3, curses.COLOR_BLUE, -1)
-
-  stdscr.clear()
-
-  nr = 0
-  total_score = 0.0  # Running sum of fractional scores
-  stats_col = 60
-  response_ms_col = 75
-  correction_col = 86
-
-  while nr < max_nr:
-
-    problem_class = random.choices(list(problems.keys()), list(problems.values()))[0]
-    pb = problem_class.create()
-    memorize, prompt, solution, exposure_ms = pb.memorize, pb.prompt, pb.solution, pb.exposure_ms
-
-    n_minutes, n_seconds = divmod(time.time() - start_time, 60)
-    n_minutes, n_seconds = int(n_minutes), int(n_seconds)
-    stdscr.addstr(nr, 0, memorize)
-    current_avg = (total_score / nr * 100) if nr > 0 else 0
-    stdscr.addstr(nr, stats_col, f'{current_avg:.1f}% {n_minutes}:{n_seconds}')
-    stdscr.refresh()
-    curses.napms(exposure_ms)
-
-    stdscr.addstr(nr, 0, ' ' * (stats_col-1))
-    stdscr.addstr(nr, 0, f'{prompt}')
-    stdscr.refresh()
-    stdscr.move(nr, len(prompt) + 1)
-
-    curses.echo()
-    t0 = time.time_ns()
-    user_input = stdscr.getstr(nr, len(prompt) + 1, 256).decode('utf-8').strip().lower()
-    response_ms = int((time.time_ns() - t0) / 1e6)
-    curses.noecho()
-
-    stdscr.addstr(nr, response_ms_col, f'{exposure_ms}/{response_ms}s')
-
-    # Calculate fractional score
-    score = pb.evaluate_solution(user_input)
-    total_score += score
+  try:
+    curses.endwin()  # Temporarily exit curses mode
     
-    # Display score with visual feedback
-    if score == 1.0:
-      stdscr.addstr(nr, 0, checkmark, curses.color_pair(2))
-    elif score >= 0.7:
-      stdscr.addstr(nr, 0, '*', curses.color_pair(3))  # Close match
-      stdscr.addstr(nr, correction_col, solution)
-    else:
-      stdscr.addstr(nr, 0, cross, curses.color_pair(1))
-      stdscr.addstr(nr, correction_col, solution)
+    print(f"Starting immersive training session with {max_nr} questions...")
+    print("Each problem will use the full screen with countdown timers.")
+    input("Press Enter to start...")
     
-    # Show score percentage
-    stdscr.addstr(nr, correction_col + len(solution) + 1, f'({score:.1%})')
-    
-    record = Record(pb, user_input, response_ms, score)
+    # Re-initialize curses
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_RED, -1)
+    curses.init_pair(2, curses.COLOR_GREEN, -1)
+    curses.init_pair(3, curses.COLOR_BLUE, -1)
+    curses.curs_set(0)  # Hide cursor initially
 
-    nr += 1
-    records.append(record)
+    stdscr.clear()
 
-  curses.endwin()
+    nr = 0
+    total_score = 0.0  # Running sum of fractional scores
+
+    while nr < max_nr:
+      problem_class = random.choices(list(problems.keys()), list(problems.values()))[0]
+      pb = problem_class.create()
+      memorize, prompt, solution, exposure_ms = pb.memorize, pb.prompt, pb.solution, pb.exposure_ms
+
+      current_avg = (total_score / nr * 100) if nr > 0 else 0
+      
+      # Calculate correct count and session time
+      correct_count = sum(1 for r in records if r.score >= 1.0)
+      session_time = time.time() - start_time
+
+      # Phase 1: Display memorize content with countdown
+      display_memorize_phase(stdscr, memorize, exposure_ms, nr + 1, max_nr, current_avg, correct_count, session_time)
+
+      # Phase 2: Display prompt and get response with timer
+      curses.curs_set(1)  # Show cursor for input
+      user_input, response_ms = display_response_phase(stdscr, prompt, nr + 1, max_nr, current_avg, correct_count, session_time)
+      curses.curs_set(0)  # Hide cursor again
+
+      # Calculate fractional score
+      score = pb.evaluate_solution(user_input)
+      total_score += score
+      
+      # Phase 3: Display feedback
+      display_feedback_phase(stdscr, score, solution, user_input, response_ms, exposure_ms)
+      
+      record = Record(pb, user_input, response_ms, score)
+
+      nr += 1
+      records.append(record)
+
+  finally:
+    # Ensure proper terminal cleanup
+    try:
+      curses.curs_set(1)  # Restore cursor
+      curses.endwin()     # Exit curses mode
+      curses.reset_shell_mode()  # Reset terminal to shell mode
+    except curses.error:
+      pass
 
   # Calculate final statistics
   final_percentage = (total_score / nr * 100) if nr > 0 else 0
   n_perfect = sum(1 for r in records if r.problem.evaluate_solution(r.response) == 1.0)
   
+  # Save session data first
+  save_session_data(test_date, start_time, nr, n_perfect, records)
+  
   # Print final score and statistics
   final_score_text = format_score(nr, n_perfect, records, total_score, final_percentage)
   print(f"\n{final_score_text}")
-  
-  # Save session data first
-  save_session_data(test_date, start_time, nr, n_perfect, records)
   
   # Display all-time statistics
   print("\n" + "="*50)
@@ -220,28 +428,28 @@ def main(stdscr, max_nr=10, selected_problems=None):
 
 
 def parse_args():
-  parser = argparse.ArgumentParser(description='Memory Training Application')
+  parser = argparse.ArgumentParser(description='Immersive Memory Training Application')
   parser.add_argument('-n', '--questions', type=int, default=10, 
                       help='Number of questions to answer (default: 10)')
-  parser.add_argument('-l', '--list-problems', action='store_true',
-                      help='List available problem types and exit')
   return parser.parse_args()
 
 
 if __name__ == '__main__':
   args = parse_args()
   
-  # Handle --list-problems option
-  if args.list_problems:
+  try:
+    if args.questions <= 0:
+      print("Error: Number of questions must be positive")
+      sys.exit(1)
+    
+    # Always show problem selection (like trainer.py)
     selected_problems = select_problems_interactively()
     if not selected_problems:
       print("No problems selected. Exiting.")
       sys.exit(0)
+    
     curses.wrapper(lambda stdscr: main(stdscr, args.questions, selected_problems))
-    sys.exit(0)
-  
-  if args.questions <= 0:
-    print("Error: Number of questions must be positive")
-    sys.exit(1)
-  
-  curses.wrapper(lambda stdscr: main(stdscr, args.questions))
+    
+  finally:
+    # Final terminal reset to ensure shell prompt is restored
+    os.system('stty sane')  # More gentle reset than full 'reset' command
