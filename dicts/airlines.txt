@@ -1,0 +1,20 @@
+AA,American
+AC,Air Canada
+AF,Air France
+AZ,Alitalia
+BA,British Airways
+CX,Cathay Pacific
+DL,Delta
+EK,Emirates
+IB,Iberia
+JL,Japan Airlines
+KL,KLM
+LH,Lufthansa
+NH,ANA
+QR,Qatar
+SK,SAS
+SQ,Singapore
+TG,Thai Airways
+TK,Turkish Airlines
+UA,United
+VS,Virgin Atlantic

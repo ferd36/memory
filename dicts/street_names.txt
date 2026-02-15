@@ -1,0 +1,146 @@
+Abbey Road
+Abc Street
+Avenida 9 de Julio
+Avenida Paulista
+Avinguda Diagonal
+Baker Street
+Beale Street
+Bleecker Street
+Bourbon Street
+Bowery
+Broadway
+Calle Florida
+Canal Street
+Carnaby Street
+Champs-Élysées
+Christopher Street
+Clerkenwell Road
+Collins Avenue
+Copacabana
+Damrak
+Dlouha
+Dotonbori
+E Street
+Elm Street
+Fifth Avenue
+Fleet Street
+Ginza
+Graben
+Gran Vía
+Haight-Ashbury
+Hohe Strasse
+Hollywood Boulevard
+Istedgade
+Jalan Alor
+József körút
+Kalakaua Avenue
+Karl Johans gate
+Kauppatori
+Khao San Road
+Kloof Street
+Koningstraat
+Kurdamm
+Königsallee
+La Rambla
+Las Vegas Boulevard
+Laugavegur
+Lijnbaan
+Lombard Street
+Luigi Einaudi
+Madero Street
+Main Street
+Mariahilfer Strasse
+Marienplatz
+Market Street
+Melrose Avenue
+Michigan Avenue
+Nassau Street
+Nathan Road
+Nevsky Prospekt
+New Bond Street
+Nishi-Azabu
+North Terrace
+Nuevos Ministerios
+O'Connell Street
+Ocean Drive
+Old Compton Street
+Orchard Road
+Oxford Street
+Paseo de la Reforma
+Passeig de Gràcia
+Penny Lane
+Piazza del Campo
+Pico Boulevard
+Ponte Vecchio
+Portobello Road
+Potsdamer Platz
+Princes Street
+Pulteney Bridge
+Quay Street
+Queen Street
+Red Square
+Regent Street
+Ringstrasse
+Rodeo Drive
+Royal Mile
+Rue Mouffetard
+Rue Saint-Denis
+Rue Saint-Honoré
+Rue Saint-Paul
+Rue de Rivoli
+Rue du Faubourg Saint-Honoré
+Rundle Mall
+Santa Fe Avenue
+Santa Monica Boulevard
+Sauchiehall Street
+Savile Row
+Scheveningen
+Shibuya Crossing
+Shinsaibashi
+Sixth Street
+SoHo
+South Bank
+South Street Seaport
+Spaccanapoli
+Spui
+St. Charles Avenue
+St. George's Mall
+St. Laurent Boulevard
+St. Louis Cemetery
+Storgata
+Stroget
+Strøget
+Sunset Boulevard
+Södermalm
+Takeshita Street
+Temple Bar
+The Embarcadero
+The Gorbals
+The Magnificent Mile
+The Marais
+The Mission
+The Rocks
+The Strand
+Times Square
+Tkalciceva Street
+Tverskaya Street
+Union Square
+Utrechtsestraat
+Venice Beach Boardwalk
+Via Appia
+Via Dolorosa
+Via Montenapoleone
+Victoria Street
+Vieux Port
+Vine Street
+Váci utca
+Wacker Drive
+Wall Street
+Wenceslas Square
+West End
+Whitechapel
+Yonge Street
+Yorkville
+Yuyuan Gardens
+Zeil
+Zürich's Bahnhofstrasse
