@@ -1,2 +1,4 @@
 unidecode
 pygame
+requests
+python-dotenv

@@ -1,7 +1,69 @@
+import os
+import re
 import random
 from pathlib import Path
 
 _UTILS_DIR = Path(__file__).resolve().parent
+
+# Try to load .env from project root or news app (same GNEWS_KEY as apps/news)
+try:
+    from dotenv import load_dotenv
+    for env_path in [
+        _UTILS_DIR.parent.parent / ".env",  # src/.env
+        _UTILS_DIR.parent / "news" / ".env",
+    ]:
+        if env_path.exists():
+            load_dotenv(env_path)
+            break
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
+
+def format_problem_name(class_name: str) -> str:
+    """Format problem class name for display by parsing camelcase."""
+    name = re.sub(r'([a-z])([A-Z])', r'\1 \2', class_name)
+    name = re.sub(r'([A-Z])([A-Z][a-z])', r'\1 \2', name)
+    return name.strip()
+
+dict_paths = [
+    '/usr/share/dict/words',
+    str(_UTILS_DIR / 'dicts/common_english_words.txt'),
+    str(_UTILS_DIR / 'dicts/common_french_words.txt'),
+    str(_UTILS_DIR / 'dicts/german_words.txt'),
+]
+
+words = []
+
+
+def _dict_path(name: str) -> Path:
+    return _UTILS_DIR / 'dicts' / name
+
+
+def load_dicts(word_length_min=4, word_length_max=6):
+    for dict_path in dict_paths:
+        if not Path(dict_path).exists():
+            continue
+        with open(dict_path) as f:
+            words_tmp = [w.strip().lower() for w in f if w.strip().isalpha()]
+            if "german" in dict_path:
+                words_tmp = [w.replace('ß', 'ss') for w in words_tmp]
+            words.append([w for w in words_tmp if word_length_min <= len(w) <= word_length_max])
+
+
+load_dicts()
+
+if not words or all(len(w) == 0 for w in words):
+    words = [['test', 'word', 'list', 'fall', 'back', 'data', 'here', 'more', 'some', 'make', 'take', 'from']]
+
+
+def _pick_word_list(min_size: int) -> list[str]:
+    """Pick a non-empty word list. Raises ValueError if none available."""
+    available = [w for w in words if len(w) >= min_size]
+    if not available:
+        raise ValueError("No word list with enough entries")
+    return random.choice(available)
 
 
 def rnd_number(number_length):
@@ -29,6 +91,36 @@ def load_frequencies():
       frequencies[current_section].append(line)
   
   return frequencies
+
+
+GNEWS_URL = "https://gnews.io/api/v4/top-headlines"
+
+
+def fetch_gnews_headlines(topic: str = "general", max_items: int = 10) -> list[str]:
+    """Fetch headline titles from GNews API. Returns empty list if unavailable."""
+    api_key = os.getenv("GNEWS_KEY", "")
+    if not api_key or api_key == "your_gnews_key_here":
+        return []
+    try:
+        import requests
+        params = {
+            "token": api_key,
+            "topic": topic,
+            "lang": "en",
+            "country": "us",
+            "max": max_items,
+        }
+        resp = requests.get(GNEWS_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        titles = []
+        for article in data.get("articles", []):
+            title = article.get("title", "").strip()
+            if title and len(title.split()) >= 4:
+                titles.append(title)
+        return titles
+    except Exception:
+        return []
 
 
 def levenshtein_distance(s1, s2):

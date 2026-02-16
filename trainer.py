@@ -9,7 +9,7 @@ import sys
 import time
 
 from classes import Record
-from problems import create_problems_dict, format_problem_name
+from problems import create_problems_dict
 from sessions import save_session_data, format_score, load_session_statistics
 
 checkmark = "\u2713"  # ✓
@@ -30,7 +30,7 @@ def select_problems_interactively():
     print("Available problem types:")
     max_num_width = len(str(len(problem_list)))
     for i, cls in enumerate(problem_list, 1):
-        formatted_name = format_problem_name(cls.__name__)
+        formatted_name = cls.display_name()
         print(f"  {i:>{max_num_width}}. {formatted_name}")
 
     print("\nEnter problem numbers separated by spaces (e.g., '1 3 5')")
@@ -152,7 +152,12 @@ def display_response_phase(
     display_centered_text(stdscr, 2, status_line, curses.color_pair(2))
 
     center_y = height // 2
-    display_prompt = "→" if prompt == ">" else "←" if prompt == "<" else prompt
+    if prompt == ">":
+        display_prompt = "  →→→  "  # Forward
+    elif prompt == "<":
+        display_prompt = "  ←←←  "  # Backward
+    else:
+        display_prompt = prompt
     display_centered_text(stdscr, center_y - 2, display_prompt)
 
     input_text = "Answer: "
@@ -335,12 +340,20 @@ def main(stdscr, max_nr: int, selected_problems: dict | None) -> None:
         print(f"Recent average (last 5): {all_time_stats['recent_average']:.1f}%")
         if all_time_stats["best_session"]:
             best = all_time_stats["best_session"]
-            print(f"Best session: {best['score_percentage']:.1f}% on {best['date']}")
-        if all_time_stats["problem_name_stats"]:
+            problem_types = sorted(
+                {r.get("problem", {}).get("name", "unknown") for r in best.get("records", [])}
+            )
+            games_str = ", ".join(problem_types) if problem_types else "mixed"
+            print(f"Best session: {best['score_percentage']:.1f}% on {best['date']} ({games_str})")
+        all_problem_names = sorted([cls.display_name() for cls in all_problems.keys()])
+        if all_problem_names:
             print("\nPerformance by problem type:")
-            max_name_length = max(len(pt) for pt in all_time_stats["problem_name_stats"])
-            for problem_name in sorted(all_time_stats["problem_name_stats"]):
-                stats = all_time_stats["problem_name_stats"][problem_name]
+            stats_by_name = all_time_stats["problem_name_stats"]
+            max_name_length = max(len(name) for name in all_problem_names)
+            for problem_name in all_problem_names:
+                stats = stats_by_name.get(problem_name) or stats_by_name.get(problem_name.lower())
+                if stats is None:
+                    stats = {"correct": 0, "total": 0, "accuracy_percentage": 0.0}
                 accuracy = stats["accuracy_percentage"]
                 total = stats["total"]
                 correct = stats["correct"]

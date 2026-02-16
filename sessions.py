@@ -6,7 +6,15 @@ from collections import defaultdict
 from pathlib import Path
 
 _SESSIONS_DIR = Path(__file__).resolve().parent
-_SESSIONS_FILE = _SESSIONS_DIR / 'training_sessions.json'
+_SESSIONS_FILE = _SESSIONS_DIR / 'data' / 'training_sessions.json'
+_LEGACY_SESSIONS_FILE = _SESSIONS_DIR / 'training_sessions.json'
+
+
+def _migrate_legacy_sessions_file() -> None:
+    """Move training_sessions.json from app root to data/ if it exists."""
+    if _LEGACY_SESSIONS_FILE.exists():
+        _SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _LEGACY_SESSIONS_FILE.rename(_SESSIONS_FILE)
 
 
 def format_score(total_questions, total_perfect, records, total_score=None, final_percentage=None):
@@ -68,6 +76,7 @@ def save_session_data(test_date, start_time, total_questions, correct_answers, r
         'records': [record.to_dict() for record in records]
     }
     
+    _SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     if _SESSIONS_FILE.exists():
         with open(_SESSIONS_FILE, 'r', encoding='utf-8') as f:
             sessions = json.load(f)
@@ -88,6 +97,9 @@ def load_session_statistics(sessions_file=None):
               problem type breakdown, and recent trends
     """
     path = Path(sessions_file) if sessions_file else _SESSIONS_FILE
+    if not path.exists() and path == _SESSIONS_FILE:
+        _migrate_legacy_sessions_file()
+        path = _SESSIONS_FILE
     if not path.exists():
         return {
             'total_sessions': 0,

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 from unidecode import unidecode
 
-from utils import levenshtein_distance
+from utils import format_problem_name, levenshtein_distance
 
 
 @dataclass
@@ -27,6 +27,10 @@ class Problem:
       raise ValueError("exposure_ms must be a positive integer")
     if not isinstance(self.problem_type, str):
       raise TypeError("problem_type must be str")
+
+  @classmethod
+  def display_name(cls) -> str:
+    return format_problem_name(cls.__name__)
 
   @staticmethod
   def create(**kwargs):

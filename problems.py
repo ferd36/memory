@@ -1,65 +1,25 @@
 import random
-from pathlib import Path
+import re
 
 from classes import Problem
-from utils import rnd_number, load_frequencies
+from utils import rnd_number, load_frequencies, _dict_path, load_dicts, _pick_word_list, words, fetch_gnews_headlines
 from unidecode import unidecode
 
-_PROBLEMS_DIR = Path(__file__).resolve().parent
 
-
-def _dict_path(name: str) -> Path:
-    return _PROBLEMS_DIR / 'dicts' / name
-dict_paths = [
-  '/usr/share/dict/words',
-  str(_PROBLEMS_DIR / 'dicts/common_english_words.txt'),
-  str(_PROBLEMS_DIR / 'dicts/common_french_words.txt'),
-  str(_PROBLEMS_DIR / 'dicts/german_words.txt'),
-]
-
-words = []
-
-
-def load_dicts(word_length_min=4, word_length_max=6):
-  for dict_path in dict_paths:
-    if not Path(dict_path).exists():
-      continue
-    with open(dict_path) as f:
-      words_tmp = [w.strip().lower() for w in f if w.strip().isalpha()]
-      if "german" in dict_path:
-        words_tmp = [w.replace('ß', 'ss') for w in words_tmp]
-      words.append([w for w in words_tmp if word_length_min <= len(w) <= word_length_max])
-
-
-load_dicts()
-
-# Fallback if no dict files found
-if not words or all(len(w) == 0 for w in words):
-    words = [['test', 'word', 'list', 'fall', 'back', 'data', 'here', 'more', 'some', 'make', 'take', 'from']]
-
-
-def _pick_word_list(min_size: int) -> list[str]:
-    """Pick a non-empty word list. Raises ValueError if none available."""
-    available = [w for w in words if len(w) >= min_size]
-    if not available:
-        raise ValueError("No word list with enough entries")
-    return random.choice(available)
-
-
-class WordListProblem(Problem):
-  @staticmethod
-  def create(num_words=4, **kwargs):
+class WordList(Problem):
+  @classmethod
+  def create(cls, num_words=4, **kwargs):
     wlist = _pick_word_list(num_words)
     sample = random.sample(wlist, num_words)
     memorize = ' '.join(sample)
     prompt = random.choice(['>', '<'])
     solution = ' '.join(sample[::1 if prompt == '>' else -1])
-    return Problem('word list', memorize, prompt, solution, 4000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class WordPairsProblem(Problem):
-  @staticmethod
-  def create(num_pairs=3, **kwargs):
+class WordPairs(Problem):
+  @classmethod
+  def create(cls, num_pairs=3, **kwargs):
     wlist = _pick_word_list(2 * num_pairs)
     sample = random.sample(wlist, 2 * num_pairs)
     pairs = [(sample[2*i], sample[1 + 2 * i]) for i in range(num_pairs)]
@@ -67,12 +27,12 @@ class WordPairsProblem(Problem):
     chosen = random.randint(0, num_pairs - 1)
     prompt = f'? {pairs[chosen][0]}'
     solution = pairs[chosen][1]
-    return Problem('word pairs', memorize, prompt, solution, 4000, 'matrix')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'matrix')
 
 
-class WordNumberPairsProblem(Problem):
-  @staticmethod
-  def create(num_pairs=3, number_length=4, **kwargs):
+class WordNumberPairs(Problem):
+  @classmethod
+  def create(cls, num_pairs=3, number_length=4, **kwargs):
     wlist = _pick_word_list(num_pairs)
     sample = random.sample(wlist, num_pairs)
     pairs = [(sample[i], rnd_number(number_length)) for i in range(num_pairs)]
@@ -80,92 +40,92 @@ class WordNumberPairsProblem(Problem):
     chosen = random.randint(0, num_pairs - 1)
     prompt = f'? {pairs[chosen][0]}'
     solution = pairs[chosen][1]
-    return Problem('word number pairs', memorize, prompt, solution, 4000, 'matrix')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'matrix')
 
 
-class NumberProblem(Problem):
-  @staticmethod
-  def create(number_length=6, **kwargs):
+class Number(Problem):
+  @classmethod
+  def create(cls, number_length=6, **kwargs):
     memorize = rnd_number(number_length)
     prompt = random.choice(['>', '<'])
     solution = ''.join(memorize[::1 if prompt == '>' else -1])
-    return Problem('short number', memorize, prompt, solution, 3000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
 
 
-class NumberLongProblem(Problem):
-  @staticmethod
-  def create(number_length=8, **kwargs):
+class NumberLong(Problem):
+  @classmethod
+  def create(cls, number_length=8, **kwargs):
     prompt = '>'
     memorize = rnd_number(number_length)
     solution = memorize
-    return Problem('long number', memorize, prompt, solution, 4000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class NumberListProblem(Problem):
-  @staticmethod
-  def create(number_length=2, num_numbers=4, **kwargs):
+class NumberList(Problem):
+  @classmethod
+  def create(cls, number_length=2, num_numbers=4, **kwargs):
     sample = [rnd_number(number_length) for _ in range(num_numbers)]
     memorize = ' '.join(sample)
     prompt = random.choice(['>', '<'])
     solution = ' '.join(sample[::1 if prompt == '>' else -1])
-    return Problem('number list', memorize, prompt, solution, 2000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
 
 
-class NumberCalculateProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class NumberCalculate(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     a, b = random.randint(1, 20), random.randint(1, 20)
     memorize = f'{a} {b}'
     prompt = random.choice(['+', '-', '*'])
     ops = {'+': a + b, '-': a - b, '*': a * b}
     solution = str(ops[prompt])
-    return Problem('calculus', memorize, prompt, solution, 2000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
 
 
-class RandomLettersProblem(Problem):
-  @staticmethod
-  def create(num_letters=8, **kwargs):
+class RandomLetters(Problem):
+  @classmethod
+  def create(cls, num_letters=8, **kwargs):
     alphabet = 'abcdefghijklmnopqrstuvwxyz'
     memorize = ''.join([random.choice(alphabet) for _ in range(num_letters)])
     prompt = '>'
     solution = memorize
-    return Problem('random word', memorize, prompt, solution, 2000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
 
 
-class RandomLettersAndNumbersProblem(Problem):
-  @staticmethod
-  def create(size=8, **kwargs):
+class RandomLettersAndNumbers(Problem):
+  @classmethod
+  def create(cls, size=8, **kwargs):
     alphabet = 'abcdefghijklmnopqrstuvwxyz'
     numbers = '0123456789'
     memorize = ''.join([random.choice(alphabet + numbers) for _ in range(size)])
     prompt = '='
     solution = memorize
-    return Problem('random word', memorize, prompt, solution, 2000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
 
 
-class WordBackwardProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class WordBackward(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     wlist = _pick_word_list(1)
     memorize = random.choice(wlist)
     prompt = '<'
     solution = ''.join(memorize[::-1])
-    return Problem('word reverse', memorize + ' >>', prompt, solution, 1000, 'single line')
+    return Problem(cls.display_name(), memorize + ' >>', prompt, solution, 1000, 'single line')
 
 
-class WordForwardProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class WordForward(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     wlist = _pick_word_list(1)
     memorize = random.choice(wlist)[::-1]
     prompt = '>'
     solution = ''.join(memorize[::-1])
-    return Problem('word scramble', memorize + ' <<', prompt, solution, 1000, 'single line')
+    return Problem(cls.display_name(), memorize + ' <<', prompt, solution, 1000, 'single line')
 
 
-class ArrowDirectionProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class ArrowDirection(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     # Unicode arrows from range U+2190 to U+21FF
     arrows = {
       'left': '←',    # U+2190
@@ -197,12 +157,12 @@ class ArrowDirectionProblem(Problem):
     prompt = f"{ask_position}"
     solution = arrow_directions[ask_position - 1]  # Convert back to 0-indexed
     
-    return Problem('arrow direction', memorize, prompt, solution, 2500, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2500, 'single line')
 
 
-class GeometryFormsProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class GeometricForms(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     # Unicode geometric shapes from range U+25A0 to U+25FF
     shapes = {
       'square': ['■', '□', '▪', '▫'],     # U+25A0, U+25A1, U+25AA, U+25AB
@@ -234,12 +194,12 @@ class GeometryFormsProblem(Problem):
     prompt = f"{ask_position}"
     solution = shape_forms[ask_position - 1]  # Convert back to 0-indexed
     
-    return Problem('geometry forms', memorize, prompt, solution, 2500, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 2500, 'single line')
 
 
-class FlightInfoProblem(Problem):
-  @staticmethod
-  def create(num_flights=1, **kwargs):
+class FlightInfo(Problem):
+  @classmethod
+  def create(cls, num_flights=1, **kwargs):
 
     airlines = []
     with open(_dict_path('airlines.txt')) as f:
@@ -294,12 +254,12 @@ class FlightInfoProblem(Problem):
     prompt = f"{ask_flight}"
     solution = flights[ask_flight - 1]  # Convert to 0-indexed
     
-    return Problem('flight info', memorize, prompt, solution, 5000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 5000, 'single line')
 
 
-class TokyoMetroProblem(Problem):
-  @staticmethod
-  def create(num_stations=3, **kwargs):
+class TokyoMetro(Problem):
+  @classmethod
+  def create(cls, num_stations=3, **kwargs):
     # Load Tokyo Metro lines and stations from file
     metro_lines = {}
     current_line_english = None
@@ -389,12 +349,12 @@ class TokyoMetroProblem(Problem):
     # Solution uses English (what they need to type)
     solution = f"{itinerary[ask_position - 1][0]} {itinerary[ask_position - 1][2]}"
     
-    return Problem('tokyo metro', memorize, prompt, solution, 4000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class AppointmentsProblem(Problem):
-  @staticmethod
-  def create(num_appointments=3, **kwargs):
+class Appointments(Problem):
+  @classmethod
+  def create(cls, num_appointments=3, **kwargs):
     # List of possible appointment types
     appointment_types = [
       'Doctor', 'Dentist', 'Plumber', 'Car repair', 'Electrician',
@@ -458,12 +418,12 @@ class AppointmentsProblem(Problem):
     prompt = f"{ask_appointment}"
     solution = f"{appointments[ask_appointment - 1][0]} {appointments[ask_appointment - 1][1]}"
     
-    return Problem('appointments', memorize, prompt, solution, 3500, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 3500, 'single line')
 
 
-class AnagramProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class Anagram(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     # Use existing word lists from dictionaries (length 4-6)
     if not words:
       load_dicts(4, 6)  # Load words of length 4-6
@@ -489,7 +449,7 @@ class AnagramProblem(Problem):
         dict_index = 0
         language = 'English'
       except ValueError:
-        return Problem('anagram', 'No words available', '>', 'error', 2000, 'single line')
+        return Problem(cls.display_name(), 'No words available', '>', 'error', 2000, 'single line')
     else:
       dict_index = random.choice(available_dicts)
       language = dict_languages[dict_index]
@@ -507,8 +467,8 @@ class AnagramProblem(Problem):
     # Combine anagram and language in prompt
     memorize = f"{anagram_word} ({language})"
     
-    # Create a custom AnagramProblem instance to store language info
-    problem = AnagramProblem('anagram', memorize, '>', original_word, 3000, 'single line')
+    # Create a custom Anagram instance to store language info
+    problem = Anagram(cls.display_name(), memorize, '>', original_word, 3000, 'single line')
     # Store additional info for evaluation
     problem._dict_index = dict_index
     problem._language = language
@@ -566,27 +526,27 @@ def create_anagram(word):
   return ''.join(letters)
 
 
-class SequenceRecognitionProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class SequenceRecognition(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate a sequence recognition problem with the first 5 elements"""
     # Dictionary of sequence generators - easy to add new ones!
     sequence_generators = {
-      'arithmetic': SequenceRecognitionProblem._generate_arithmetic,
-      'geometric': SequenceRecognitionProblem._generate_geometric,
-      'fibonacci': SequenceRecognitionProblem._generate_fibonacci,
-      'squares': SequenceRecognitionProblem._generate_squares,
-      'powers_of_2': SequenceRecognitionProblem._generate_powers_of_2,
-      'triangular': SequenceRecognitionProblem._generate_triangular,
-      'cubes': SequenceRecognitionProblem._generate_cubes,
-      'primes': SequenceRecognitionProblem._generate_primes,
-      'factorial': SequenceRecognitionProblem._generate_factorial,
-      'alternating': SequenceRecognitionProblem._generate_alternating,
-      'recursive': SequenceRecognitionProblem._generate_recursive,
-      'exponential': SequenceRecognitionProblem._generate_exponential,
-      'lucas': SequenceRecognitionProblem._generate_lucas,
-      'padovan': SequenceRecognitionProblem._generate_padovan,
-      'catalan': SequenceRecognitionProblem._generate_catalan,
+      'arithmetic': SequenceRecognition._generate_arithmetic,
+      'geometric': SequenceRecognition._generate_geometric,
+      'fibonacci': SequenceRecognition._generate_fibonacci,
+      'squares': SequenceRecognition._generate_squares,
+      'powers_of_2': SequenceRecognition._generate_powers_of_2,
+      'triangular': SequenceRecognition._generate_triangular,
+      'cubes': SequenceRecognition._generate_cubes,
+      'primes': SequenceRecognition._generate_primes,
+      'factorial': SequenceRecognition._generate_factorial,
+      'alternating': SequenceRecognition._generate_alternating,
+      'recursive': SequenceRecognition._generate_recursive,
+      'exponential': SequenceRecognition._generate_exponential,
+      'lucas': SequenceRecognition._generate_lucas,
+      'padovan': SequenceRecognition._generate_padovan,
+      'catalan': SequenceRecognition._generate_catalan,
     }
     
     # Randomly select a sequence type
@@ -605,7 +565,7 @@ class SequenceRecognitionProblem(Problem):
     prompt = '>'
     solution = str(next_element)
     
-    return Problem('sequence recognition', memorize, prompt, solution, 3000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
   
   @staticmethod
   def _generate_arithmetic():
@@ -737,9 +697,9 @@ class SequenceRecognitionProblem(Problem):
     return [catalan(start + i) for i in range(6)]
 
 
-class MetarProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class Metar(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate a METAR/TAF aviation weather report memorization problem"""
     
     # Airport codes (mix of major international airports)
@@ -817,10 +777,10 @@ class MetarProblem(Problem):
     
     question_type, answer, prompt = random.choice(question_types)
     
-    return Problem('metar', full_metar, prompt, answer, 6000, 'single line')
+    return Problem(cls.display_name(), full_metar, prompt, answer, 6000, 'single line')
 
 
-class AtcProblem(Problem):
+class Atc(Problem):
   _airlines = None
   _frequencies = None
 
@@ -835,14 +795,14 @@ class AtcProblem(Problem):
       if cls._frequencies is None:
           cls._frequencies = load_frequencies()
 
-  @staticmethod
-  def create(**kwargs):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate ATC IFR departure/landing instructions"""
-    AtcProblem._load_airlines()
-    AtcProblem._load_frequencies()
+    Atc._load_airlines()
+    Atc._load_frequencies()
     
     # Aircraft callsigns (mix of airlines and general aviation)
-    flight_numbers = [f"{random.choice(AtcProblem._airlines)}{random.randint(100, 9999)}" for _ in range(5)]
+    flight_numbers = [f"{random.choice(Atc._airlines)}{random.randint(100, 9999)}" for _ in range(5)]
     ga_callsigns = [f"N{random.randint(100, 999)}{random.choice(['AB', 'CD', 'EF', 'GH'])}" for _ in range(3)]
     callsigns = flight_numbers + ga_callsigns
     
@@ -868,7 +828,7 @@ class AtcProblem(Problem):
       initial_altitude = random.choice([3000, 4000, 5000, 6000, 8000, 10000])
       
       # Departure frequencies
-      departure_freq = random.choice(AtcProblem._frequencies['approach'])
+      departure_freq = random.choice(Atc._frequencies['approach'])
       
       instruction = f"{callsign}, runway {runway}, cleared for takeoff, fly heading {departure_heading:03d}, climb and maintain {initial_altitude}, squawk {squawk}, contact departure {departure_freq}"
       
@@ -889,7 +849,7 @@ class AtcProblem(Problem):
       speed_restriction = random.choice([180, 200, 210, 220, 250])
       
       # Approach frequencies  
-      approach_freq = random.choice(AtcProblem._frequencies['tower'])
+      approach_freq = random.choice(Atc._frequencies['tower'])
       
       instruction = f"{callsign}, descend and maintain {final_altitude}, reduce speed {speed_restriction} knots, cleared {approach_type} approach runway {runway}, contact tower {approach_freq}"
       
@@ -947,10 +907,10 @@ class AtcProblem(Problem):
     
     question_type, answer, prompt = random.choice(questions)
     
-    return Problem('atc', instruction, prompt, answer, 5000, 'single line')
+    return Problem(cls.display_name(), instruction, prompt, answer, 5000, 'single line')
 
 
-class FlightPlanProblem(Problem):
+class FlightPlan(Problem):
   _vors = None
   _frequencies = None
 
@@ -965,15 +925,15 @@ class FlightPlanProblem(Problem):
     if cls._frequencies is None:
       cls._frequencies = load_frequencies()
 
-  @staticmethod
-  def create(num_waypoints=5, **kwargs):
-    FlightPlanProblem._load_vors()
-    FlightPlanProblem._load_frequencies()
+  @classmethod
+  def create(cls, num_waypoints=5, **kwargs):
+    FlightPlan._load_vors()
+    FlightPlan._load_frequencies()
     
-    vor_list = FlightPlanProblem._vors
-    approach_freqs = FlightPlanProblem._frequencies['approach']
-    tower_freqs = FlightPlanProblem._frequencies['tower']
-    ground_freqs = FlightPlanProblem._frequencies['ground']
+    vor_list = FlightPlan._vors
+    approach_freqs = FlightPlan._frequencies['approach']
+    tower_freqs = FlightPlan._frequencies['tower']
+    ground_freqs = FlightPlan._frequencies['ground']
     
     # Generate flight plan waypoints
     waypoints = []
@@ -1026,10 +986,10 @@ class FlightPlanProblem(Problem):
       prompt = f"Contact at waypoint {chosen_idx + 1}?"
       solution = chosen_waypoint.split()[4]
     
-    return Problem('flight plan', memorize, prompt, solution, 6000, 'multiline')
+    return Problem(cls.display_name(), memorize, prompt, solution, 6000, 'multiline')
 
 
-class RoadProblem(Problem):
+class Road(Problem):
   _street_names = None
 
   @classmethod
@@ -1038,10 +998,10 @@ class RoadProblem(Problem):
           with open(_dict_path('street_names.txt')) as f:
               cls._street_names = [line.strip() for line in f]
 
-  @staticmethod
-  def create(**kwargs):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate a road itinerary with highway numbers, exits, and distances"""
-    RoadProblem._load_street_names()
+    Road._load_street_names()
     
     # Highway types and numbers
     interstate_highways = ['I-5', 'I-10', 'I-95', 'I-75', 'I-40', 'I-80', 'I-90', 'I-35', 'I-15', 'I-25']
@@ -1049,7 +1009,7 @@ class RoadProblem(Problem):
     state_routes = ['SR-1', 'SR-99', 'SR-85', 'CA-1', 'Route 128', 'SR-237', 'Route 2', 'SR-92']
     
     # Street/road names from file
-    street_names = RoadProblem._street_names
+    street_names = Road._street_names
     
     # Generate itinerary steps
     num_steps = random.randint(3, 5)
@@ -1145,12 +1105,12 @@ class RoadProblem(Problem):
     
     question_type, answer, prompt = random.choice(questions)
     
-    return Problem('road', full_itinerary, prompt, answer, 6000, 'multiline')
+    return Problem(cls.display_name(), full_itinerary, prompt, answer, 6000, 'multiline')
 
 
-class TimeDurationProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class TimeDuration(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate time duration calculation problems"""
     
     # Generate random times
@@ -1196,12 +1156,12 @@ class TimeDurationProblem(Problem):
       prompt = "End time (HH:MM)?"
       solution = end_time
     
-    return Problem('time duration', memorize, prompt, solution, 4000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class ChemicalFormulaProblem(Problem):
-  @staticmethod
-  def create(**kwargs):
+class ChemicalFormula(Problem):
+  @classmethod
+  def create(cls, **kwargs):
     """Generate chemical formula memorization problems"""
     
     # Common chemical formulas with names
@@ -1274,14 +1234,14 @@ class ChemicalFormulaProblem(Problem):
       prompt = "Elements (space separated)?"
       solution = " ".join(elements)
     
-    return Problem('chemical formula', memorize, prompt, solution, 4000, 'single line')
+    return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class NBackProblem(Problem):
+class NBack(Problem):
     """N-back: was the item at position P the same as P-N?"""
 
-    @staticmethod
-    def create(n_back=1, seq_length=8, **kwargs):
+    @classmethod
+    def create(cls, n_back=1, seq_length=8, **kwargs):
         alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
         seq = [random.choice(alphabet) for _ in range(seq_length)]
         
@@ -1300,7 +1260,7 @@ class NBackProblem(Problem):
         solution = 'yes' if is_match else 'no'
         memorize = ' '.join(f'{i+1}:{s}' for i, s in enumerate(seq))
         prompt = f"Position {ask_pos} matches position {match_pos} ({n_back}-back)? (yes/no)"
-        return NBackProblem('n back', memorize, prompt, solution, 4000, 'single line')
+        return NBack(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
     def evaluate_solution(self, user_input: str) -> float:
         if user_input is None:
@@ -1313,11 +1273,11 @@ class NBackProblem(Problem):
         return super().evaluate_solution(user_input)
 
 
-class SternbergProblem(Problem):
+class Sternberg(Problem):
     """Sternberg: was this item in the set?"""
 
-    @staticmethod
-    def create(set_size=5, **kwargs):
+    @classmethod
+    def create(cls, set_size=5, **kwargs):
         alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
         pool = list(alphabet)
         set_size = min(set_size, len(pool) - 1)
@@ -1330,7 +1290,7 @@ class SternbergProblem(Problem):
 
         memorize = ' '.join(memory_set)
         prompt = f"Was '{probe}' in the set? (yes/no)"
-        return SternbergProblem('sternberg', memorize, prompt, solution, 3500, 'single line')
+        return Sternberg(cls.display_name(), memorize, prompt, solution, 3500, 'single line')
 
     def evaluate_solution(self, user_input: str) -> float:
         if user_input is None:
@@ -1343,11 +1303,11 @@ class SternbergProblem(Problem):
         return super().evaluate_solution(user_input)
 
 
-class MatrixMemoryProblem(Problem):
+class MatrixMemory(Problem):
     """Spatial grid: which cell was marked?"""
 
-    @staticmethod
-    def create(grid_size=3, num_marked=1, **kwargs):
+    @classmethod
+    def create(cls, grid_size=3, num_marked=1, **kwargs):
         cells = [(r, c) for r in range(grid_size) for c in range(grid_size)]
         # Mark only 1 cell to avoid ambiguity in "recall which cell was marked"
         marked_cell = random.choice(cells)
@@ -1364,7 +1324,7 @@ class MatrixMemoryProblem(Problem):
         row_num = marked_cell[0] + 1
         prompt = "Which cell was marked? (e.g. A1)"
         solution = f"{col_letter}{row_num}"
-        return MatrixMemoryProblem('matrix memory', memorize, prompt, solution, 3000, 'matrix')
+        return MatrixMemory(cls.display_name(), memorize, prompt, solution, 3000, 'matrix')
 
     def evaluate_solution(self, user_input: str) -> float:
         if user_input is None:
@@ -1379,11 +1339,11 @@ class MatrixMemoryProblem(Problem):
         return super().evaluate_solution(user_input)
 
 
-class ShoppingListProblem(Problem):
+class ShoppingList(Problem):
     """Shopping list with quantities."""
 
-    @staticmethod
-    def create(num_items=4, **kwargs):
+    @classmethod
+    def create(cls, num_items=4, **kwargs):
         wlist = _pick_word_list(num_items)
         sample = random.sample(wlist, num_items)
         # Ensure unique quantities to avoid ambiguity in reverse lookup
@@ -1397,14 +1357,14 @@ class ShoppingListProblem(Problem):
         else:
             prompt = f"Item for quantity {pairs[chosen][0]}?"
             solution = pairs[chosen][1]
-        return Problem('shopping list', memorize, prompt, solution, 4000, 'single line')
+        return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
 
 
-class ColorSequenceProblem(Problem):
+class ColorSequence(Problem):
     """Remember a sequence of colors (R=red, G=green, B=blue, Y=yellow)."""
 
-    @staticmethod
-    def create(seq_length=5, **kwargs):
+    @classmethod
+    def create(cls, seq_length=5, **kwargs):
         colors = ['R', 'G', 'B', 'Y']
         seq = [random.choice(colors) for _ in range(seq_length)]
         memorize = ' '.join(seq)
@@ -1415,7 +1375,7 @@ class ColorSequenceProblem(Problem):
         else:
             prompt = "Full sequence?"
             solution = ' '.join(seq)
-        return ColorSequenceProblem('color sequence', memorize, prompt, solution, 3000, 'single line')
+        return ColorSequence(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
 
     def evaluate_solution(self, user_input: str) -> float:
         if user_input is None:
@@ -1432,47 +1392,63 @@ class ColorSequenceProblem(Problem):
         return super().evaluate_solution(user_input)
 
 
-class SentenceCompletionProblem(Problem):
-    """Memorize a sentence, recall the missing word."""
+class SentenceCompletion(Problem):
+    """Memorize a headline, recall the missing word."""
 
-    _templates = [
+    _used_sentences: set[str] = set()
+
+    _fallback_templates = [
         ("The cat sat on the ___", "mat"),
         ("She went to the ___ to buy milk", "store"),
         ("He opened the ___ and looked inside", "box"),
         ("The sun rises in the ___", "east"),
         ("Birds fly south for the ___", "winter"),
-        ("She drank a cup of ___", "tea"),
-        ("The book was on the ___", "shelf"),
-        ("They walked along the ___", "beach"),
-        ("The key was under the ___", "rug"),
-        ("He ran through the ___", "park"),
+        ("The ___ is closed today", "post office"),
+        ("She bought ___ at the market", "fresh bread"),
     ]
 
-    @staticmethod
-    def create(**kwargs):
-        sentence_tpl, word = random.choice(SentenceCompletionProblem._templates)
-        # Show full sentence in memorize phase
+    @classmethod
+    def create(cls, **kwargs):
+        headlines = fetch_gnews_headlines(topic="general", max_items=10)
+        if headlines:
+            unused = [h for h in headlines if h not in cls._used_sentences]
+            if unused:
+                sentence = random.choice(unused)
+                cls._used_sentences.add(sentence)
+                words_list = [w for w in sentence.split() if len(w) >= 2 and sum(c.isalpha() for c in w) >= 2]
+                if len(words_list) >= 3:
+                    use_two_words = len(words_list) >= 4 and random.random() < 0.3
+                    if use_two_words:
+                        i = random.randint(0, len(words_list) - 2)
+                        w1, w2 = words_list[i], words_list[i + 1]
+                        solution = f"{w1} {w2}"
+                        pattern = re.escape(w1) + r"\s+" + re.escape(w2)
+                        prompt = re.sub(pattern, "___", sentence, count=1)
+                    else:
+                        solution = random.choice(words_list)
+                        prompt = sentence.replace(solution, "___", 1)
+                    if "___" in prompt and solution:
+                        return Problem(cls.display_name(), sentence, prompt, solution, 4000, 'single line')
+        sentence_tpl, word = random.choice(SentenceCompletion._fallback_templates)
         memorize = sentence_tpl.replace("___", word)
-        # Prompt shows the sentence with the blank
-        prompt = sentence_tpl
-        return Problem('sentence completion', memorize, prompt, word, 4000, 'single line')
+        return Problem(cls.display_name(), memorize, sentence_tpl, word, 4000, 'single line')
 
 
-class NumberBackwardProblem(Problem):
+class NumberBackward(Problem):
     """Digit span backward: recall digits in reverse order."""
 
-    @staticmethod
-    def create(number_length=6, **kwargs):
+    @classmethod
+    def create(cls, number_length=6, **kwargs):
         memorize = rnd_number(number_length)
         solution = memorize[::-1]
-        return Problem('number backward', memorize, '<', solution, 3500, 'single line')
+        return Problem(cls.display_name(), memorize, '<', solution, 3500, 'single line')
 
 
-class NameAttributePairsProblem(Problem):
+class NameAttributePairs(Problem):
     """Name:City or Name:Profession pairs."""
 
-    @staticmethod
-    def create(num_pairs=3, **kwargs):
+    @classmethod
+    def create(cls, num_pairs=3, **kwargs):
         wlist = _pick_word_list(2 * num_pairs)
         words_pool = random.sample(wlist, 2 * num_pairs)
         names = words_pool[:num_pairs]
@@ -1482,24 +1458,7 @@ class NameAttributePairsProblem(Problem):
         chosen = random.randint(0, num_pairs - 1)
         prompt = f"? {pairs[chosen][0]}"
         solution = pairs[chosen][1]
-        return Problem('name attribute pairs', memorize, prompt, solution, 4000, 'matrix')
-
-
-def format_problem_name(class_name):
-  """Format problem class name for display by parsing camelcase"""
-  import re
-  
-  # Remove "Problem" suffix if present
-  name = class_name
-  if name.endswith("Problem"):
-    name = name[:-7]  # Remove "Problem"
-  
-  # Split camelcase into separate words
-  # Insert space before uppercase letters that follow lowercase letters or other uppercase letters
-  name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name)  # camelCase -> camel Case
-  name = re.sub(r'([A-Z])([A-Z][a-z])', r'\1 \2', name)  # ABCDef -> ABC Def
-  
-  return name.strip()
+        return Problem(cls.display_name(), memorize, prompt, solution, 4000, 'matrix')
 
 
 def create_problems_dict():
