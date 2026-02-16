@@ -3,6 +3,10 @@ import os
 import time
 import statistics
 from collections import defaultdict
+from pathlib import Path
+
+_SESSIONS_DIR = Path(__file__).resolve().parent
+_SESSIONS_FILE = _SESSIONS_DIR / 'training_sessions.json'
 
 
 def format_score(total_questions, total_perfect, records, total_score=None, final_percentage=None):
@@ -11,6 +15,10 @@ def format_score(total_questions, total_perfect, records, total_score=None, fina
   
   lines.append("Training session completed!")
   
+  if total_questions == 0:
+    lines.append("No questions answered.")
+    return "\n".join(lines)
+
   if total_score is not None and final_percentage is not None:
     lines.append(f"Final score: {final_percentage:.1f}% average (total: {total_score:.2f}/{total_questions})")
     lines.append(f"Perfect answers: {total_perfect}/{total_questions} ({total_perfect/total_questions*100:.1f}%)")
@@ -60,19 +68,18 @@ def save_session_data(test_date, start_time, total_questions, correct_answers, r
         'records': [record.to_dict() for record in records]
     }
     
-    sessions_file = 'training_sessions.json'
-    if os.path.exists(sessions_file):
-        with open(sessions_file, 'r', encoding='utf-8') as f:
+    if _SESSIONS_FILE.exists():
+        with open(_SESSIONS_FILE, 'r', encoding='utf-8') as f:
             sessions = json.load(f)
     else:
         sessions = []
     
     sessions.append(session_data)
-    with open(sessions_file, 'w', encoding='utf-8') as f:
+    with open(_SESSIONS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sessions, f, indent=2, ensure_ascii=False)
 
 
-def load_session_statistics(sessions_file='training_sessions.json'):
+def load_session_statistics(sessions_file=None):
     """
     Load and aggregate statistics from previous training sessions.
     
@@ -80,7 +87,8 @@ def load_session_statistics(sessions_file='training_sessions.json'):
         dict: Aggregated statistics including overall performance, 
               problem type breakdown, and recent trends
     """
-    if not os.path.exists(sessions_file):
+    path = Path(sessions_file) if sessions_file else _SESSIONS_FILE
+    if not path.exists():
         return {
             'total_sessions': 0,
             'total_questions': 0,
@@ -92,14 +100,26 @@ def load_session_statistics(sessions_file='training_sessions.json'):
             'session_dates': []
         }
     
+    empty_stats = {
+        'total_sessions': 0,
+        'total_questions': 0,
+        'total_correct_answers': 0,
+        'overall_average_score': 0.0,
+        'problem_name_stats': {},
+        'recent_sessions': [],
+        'best_session': None,
+        'session_dates': [],
+        'recent_average': 0.0
+    }
+
     try:
-        with open(sessions_file, 'r', encoding='utf-8') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             sessions = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
-        return load_session_statistics()  # Return empty stats if file is corrupted
+        return empty_stats  # Return empty stats if file is corrupted
     
     if not sessions:
-        return load_session_statistics()  # Return empty stats if no sessions
+        return empty_stats  # Return empty stats if no sessions
     
     # Overall statistics
     total_sessions = len(sessions)

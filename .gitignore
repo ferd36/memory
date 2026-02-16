@@ -2,9 +2,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 .DS_Store
-memory.old/
 training_sessions.json
 .vscode/
 .idea/
 *.swp
 *.bak
+.coverage

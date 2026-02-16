@@ -1,4 +1,8 @@
 import random
+from pathlib import Path
+
+_UTILS_DIR = Path(__file__).resolve().parent
+
 
 def rnd_number(number_length):
   """Generate a random number of a given length"""
@@ -7,7 +11,7 @@ def rnd_number(number_length):
 
 def load_frequencies():
   """Load frequencies from dicts/frequencies.txt and return a dictionary with approach, tower, and ground frequencies"""
-  with open('dicts/frequencies.txt') as f:
+  with open(_UTILS_DIR / 'dicts/frequencies.txt') as f:
     lines = f.readlines()
   
   frequencies = {'approach': [], 'tower': [], 'ground': []}
