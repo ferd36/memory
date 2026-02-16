@@ -3,6 +3,7 @@ __pycache__/
 *$py.class
 .DS_Store
 data/training_sessions.json
+data/training_sessions.json.gzip
 .vscode/
 .idea/
 *.swp

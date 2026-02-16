@@ -1,20 +1,30 @@
+import gzip
 import json
-import os
-import time
 import statistics
+import time
 from collections import defaultdict
 from pathlib import Path
 
+_GZIP_MAGIC = b'\x1f\x8b'
+
+
+def _read_file_content(path: Path) -> str:
+    """Read file; if gzip magic, decompress then decode, else decode as utf-8."""
+    raw = path.read_bytes()
+    if not raw:
+        return ''
+    if raw[:2] == _GZIP_MAGIC:
+        return gzip.decompress(raw).decode('utf-8')
+    return raw.decode('utf-8')
+
+
+def _write_file_gzipped(path: Path, content: str) -> None:
+    """Write content as gzip-compressed bytes to path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(gzip.compress(content.encode('utf-8'), compresslevel=9))
+
 _SESSIONS_DIR = Path(__file__).resolve().parent
-_SESSIONS_FILE = _SESSIONS_DIR / 'data' / 'training_sessions.json'
-_LEGACY_SESSIONS_FILE = _SESSIONS_DIR / 'training_sessions.json'
-
-
-def _migrate_legacy_sessions_file() -> None:
-    """Move training_sessions.json from app root to data/ if it exists."""
-    if _LEGACY_SESSIONS_FILE.exists():
-        _SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _LEGACY_SESSIONS_FILE.rename(_SESSIONS_FILE)
+_SESSIONS_FILE = _SESSIONS_DIR / 'data' / 'training_sessions.json.gzip'
 
 
 def format_score(total_questions, total_perfect, records, total_score=None, final_percentage=None):
@@ -65,27 +75,45 @@ def format_score(total_questions, total_perfect, records, total_score=None, fina
   return "\n".join(lines)
 
 
+def _read_sessions(path: Path) -> list:
+    """Read sessions from file: gzip-compressed JSONL (one JSON object per line)."""
+    if not path.exists():
+        return []
+    content = _read_file_content(path)
+    if not content:
+        return []
+    sessions = []
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        sessions.append(json.loads(line))
+    return sessions
+
+
 def save_session_data(test_date, start_time, total_questions, correct_answers, records):
-    """Save training session data to JSON file"""
+    """Append one session as a JSON line; file is stored gzip(JSONL)."""
     session_data = {
         'date': test_date.strftime('%Y-%m-%d %H:%M:%S'),
         'duration_seconds': int(time.time() - start_time),
         'total_questions': total_questions,
         'correct_answers': correct_answers,
         'score_percentage': round(correct_answers/total_questions*100, 1) if total_questions > 0 else 0,
-        'records': [record.to_dict() for record in records]
+        'records': [
+            {
+                'problem': r.problem.to_dict(),
+                'response': r.response,
+                'response_ms': r.response_ms,
+                'score': r.score,
+                'correct': r.score >= 1.0,
+            }
+            for r in records
+        ],
     }
-    
-    _SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if _SESSIONS_FILE.exists():
-        with open(_SESSIONS_FILE, 'r', encoding='utf-8') as f:
-            sessions = json.load(f)
-    else:
-        sessions = []
-    
-    sessions.append(session_data)
-    with open(_SESSIONS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(sessions, f, indent=2, ensure_ascii=False)
+    existing = _read_file_content(_SESSIONS_FILE) if _SESSIONS_FILE.exists() else ''
+    line = json.dumps(session_data, ensure_ascii=False)
+    new_content = (existing.rstrip() + '\n' + line + '\n') if existing.strip() else (line + '\n')
+    _write_file_gzipped(_SESSIONS_FILE, new_content)
 
 
 def load_session_statistics(sessions_file=None):
@@ -97,9 +125,6 @@ def load_session_statistics(sessions_file=None):
               problem type breakdown, and recent trends
     """
     path = Path(sessions_file) if sessions_file else _SESSIONS_FILE
-    if not path.exists() and path == _SESSIONS_FILE:
-        _migrate_legacy_sessions_file()
-        path = _SESSIONS_FILE
     if not path.exists():
         return {
             'total_sessions': 0,
@@ -109,7 +134,8 @@ def load_session_statistics(sessions_file=None):
             'problem_name_stats': {},
             'recent_sessions': [],
             'best_session': None,
-            'session_dates': []
+            'session_dates': [],
+            'recent_average': 0.0
         }
     
     empty_stats = {
@@ -125,8 +151,7 @@ def load_session_statistics(sessions_file=None):
     }
 
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            sessions = json.load(f)
+        sessions = _read_sessions(path)
     except (json.JSONDecodeError, FileNotFoundError):
         return empty_stats  # Return empty stats if file is corrupted
     
@@ -161,8 +186,7 @@ def load_session_statistics(sessions_file=None):
     
     for session in sessions:
         for record in session.get('records', []):
-            # Extract problem_name from nested problem structure
-            problem_data = record.get('problem', {})
+            problem_data = record.get('problem', {}) or {}
             problem_name = problem_data.get('name', 'unknown')
             
             problem_name_stats[problem_name]['total'] += 1

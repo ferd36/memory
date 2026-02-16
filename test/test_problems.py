@@ -570,6 +570,10 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(levenshtein_distance("kitten", "sitting"), 3)
         self.assertEqual(levenshtein_distance("abc", "abcd"), 1)
 
+    def test_levenshtein_distance_swapped_lengths(self):
+        from utils import levenshtein_distance
+        self.assertEqual(levenshtein_distance("ab", "a"), 1)
+
     def test_load_frequencies(self):
         from utils import load_frequencies
         freqs = load_frequencies()
@@ -584,6 +588,65 @@ class TestUtils(unittest.TestCase):
         num = rnd_number(6)
         self.assertEqual(len(num), 6)
         self.assertTrue(num.isdigit())
+
+    def test_pick_word_list_value_error_when_insufficient(self):
+        import utils
+        orig_words = utils.words
+        try:
+            utils.words = [["a", "b"]]
+            with self.assertRaises(ValueError):
+                utils._pick_word_list(10)
+        finally:
+            utils.words = orig_words
+
+    def test_load_dicts_skips_nonexistent_path(self):
+        import utils
+        from pathlib import Path
+        orig_dp = utils.dict_paths
+        try:
+            utils.dict_paths = [str(Path("/nonexistent_dict_xyz_123"))] + list(utils.dict_paths)
+            before_len = len(utils.words)
+            utils.load_dicts()
+            self.assertGreaterEqual(len(utils.words), before_len)
+        finally:
+            utils.dict_paths = orig_dp
+
+    def test_fetch_gnews_headlines_empty_without_key(self):
+        from utils import fetch_gnews_headlines
+        import os
+        orig = os.environ.get("GNEWS_KEY")
+        try:
+            os.environ.pop("GNEWS_KEY", None)
+            self.assertEqual(fetch_gnews_headlines(), [])
+        finally:
+            if orig is not None:
+                os.environ["GNEWS_KEY"] = orig
+
+    def test_fetch_gnews_headlines_with_mock(self):
+        from utils import fetch_gnews_headlines
+        import os
+        from unittest.mock import patch, MagicMock
+        orig = os.environ.get("GNEWS_KEY")
+        try:
+            os.environ["GNEWS_KEY"] = "test_key"
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "articles": [
+                    {"title": "One Two Three Four Five"},
+                    {"title": "Short"},
+                ],
+            }
+            mock_resp.raise_for_status = MagicMock()
+            import requests
+            with patch.object(requests, "get", return_value=mock_resp):
+                titles = fetch_gnews_headlines(max_items=10)
+            self.assertEqual(len(titles), 1)
+            self.assertEqual(titles[0], "One Two Three Four Five")
+        finally:
+            if orig is not None:
+                os.environ["GNEWS_KEY"] = orig
+            else:
+                os.environ.pop("GNEWS_KEY", None)
 
 
 class TestCreateProblemsDict(unittest.TestCase):
@@ -600,6 +663,115 @@ class TestCreateProblemsDict(unittest.TestCase):
     def test_format_problem_name(self):
         self.assertEqual(format_problem_name("WordList"), "Word List")
         self.assertEqual(format_problem_name("NBack"), "N Back")
+
+
+class TestProblemCoverageBranches(unittest.TestCase):
+    """Tests to cover additional branches in problem create() and helpers."""
+
+    def test_flight_info_create_many_seeds(self):
+        for seed in range(40):
+            random.seed(seed)
+            pb = FlightInfo.create(num_flights=3)
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_tokyo_metro_create_many_seeds(self):
+        for seed in range(80):
+            random.seed(seed)
+            pb = TokyoMetro.create(num_stations=4)
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_appointments_create_many_seeds(self):
+        for seed in range(120):
+            random.seed(seed)
+            pb = Appointments.create(num_appointments=6)
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_anagram_no_words_returns_fallback(self):
+        import problems
+        import utils
+        orig_problems_words = problems.words
+        orig_utils_words = utils.words
+        try:
+            empty = [[], [], []]
+            problems.words = empty
+            utils.words = empty
+            pb = problems.Anagram.create()
+            self.assertTrue(_valid_problem(pb))
+            self.assertIn("No words available", pb.memorize)
+        finally:
+            problems.words = orig_problems_words
+            utils.words = orig_utils_words
+
+    def test_anagram_evaluate_without_dict_index_uses_levenshtein(self):
+        """Anagram without _dict_index falls back to Levenshtein in _is_valid_anagram."""
+        pb = Anagram("Anagram", "listen", ">", "silent", 3000, "single line")
+        self.assertFalse(hasattr(pb, "_dict_index"))
+        self.assertGreater(pb.evaluate_solution("tsilen"), 0.0)
+        self.assertLess(pb.evaluate_solution("tsilen"), 1.0)
+
+    def test_sentence_completion_create_many_seeds(self):
+        for seed in range(60):
+            random.seed(seed)
+            pb = SentenceCompletion.create()
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_sentence_completion_with_mock_headlines(self):
+        from unittest.mock import patch
+        import problems
+        long_headline = "One Two Three Four Five Six Seven"
+        with patch.object(problems, "fetch_gnews_headlines", return_value=[long_headline]):
+            pb = problems.SentenceCompletion.create()
+            self.assertTrue(_valid_problem(pb))
+
+    def test_sentence_completion_two_word_fill(self):
+        from unittest.mock import patch
+        import problems
+        headline = "Alpha Beta Gamma Delta"
+        with patch.object(problems, "fetch_gnews_headlines", return_value=[headline]):
+            with patch("problems.random.random", return_value=0.2):
+                with patch("problems.random.randint", return_value=0):
+                    pb = problems.SentenceCompletion.create()
+                    self.assertTrue(_valid_problem(pb))
+                    self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_atc_create_many_seeds(self):
+        for seed in range(25):
+            random.seed(seed)
+            pb = Atc.create()
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_flight_plan_create_many_seeds(self):
+        for seed in range(25):
+            random.seed(seed)
+            pb = FlightPlan.create(num_waypoints=2)
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_road_create_many_seeds(self):
+        for seed in range(30):
+            random.seed(seed)
+            pb = Road.create()
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_metar_create_many_seeds(self):
+        for seed in range(40):
+            random.seed(seed)
+            pb = Metar.create()
+            self.assertTrue(_valid_problem(pb))
+            self.assertEqual(pb.evaluate_solution(pb.solution), 1.0)
+
+    def test_create_problems_dict_empty_when_no_classes(self):
+        from unittest.mock import patch
+        import problems
+        with patch("problems.dir", return_value=[]):
+            d = problems.create_problems_dict()
+            self.assertEqual(d, {})
 
 
 if __name__ == "__main__":
