@@ -66,31 +66,36 @@ def _pick_word_list(min_size: int) -> list[str]:
     return random.choice(available)
 
 
-def rnd_number(number_length):
-  """Generate a random number of a given length"""
-  return ''.join([random.choice('0123456789') for _ in range(number_length)])
+def rnd_number(number_length: int) -> str:
+    """Generate a random number of a given length. Requires number_length >= 0."""
+    if number_length < 0:
+        raise ValueError("number_length must be non-negative")
+    return ''.join([random.choice('0123456789') for _ in range(number_length)])
 
 
-def load_frequencies():
-  """Load frequencies from dicts/frequencies.txt and return a dictionary with approach, tower, and ground frequencies"""
-  with open(_UTILS_DIR / 'dicts/frequencies.txt') as f:
-    lines = f.readlines()
-  
-  frequencies = {'approach': [], 'tower': [], 'ground': []}
-  current_section = None
-  
-  for line in lines:
-    line = line.strip()
-    if line.startswith('# Approach frequencies'):
-      current_section = 'approach'
-    elif line.startswith('# Tower frequencies'):
-      current_section = 'tower'
-    elif line.startswith('# Ground frequencies'):
-      current_section = 'ground'
-    elif line and current_section and not line.startswith('#'):
-      frequencies[current_section].append(line)
-  
-  return frequencies
+def load_frequencies() -> dict[str, list[str]]:
+    """Load frequencies from dicts/frequencies.txt. Returns empty lists if file missing."""
+    path = _UTILS_DIR / 'dicts/frequencies.txt'
+    frequencies: dict[str, list[str]] = {'approach': [], 'tower': [], 'ground': []}
+    if not path.exists():
+        return frequencies
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        return frequencies
+    current_section = None
+    for line in lines:
+        line = line.strip()
+        if line.startswith('# Approach frequencies'):
+            current_section = 'approach'
+        elif line.startswith('# Tower frequencies'):
+            current_section = 'tower'
+        elif line.startswith('# Ground frequencies'):
+            current_section = 'ground'
+        elif line and current_section and not line.startswith('#'):
+            frequencies[current_section].append(line)
+    return frequencies
 
 
 GNEWS_URL = "https://gnews.io/api/v4/top-headlines"

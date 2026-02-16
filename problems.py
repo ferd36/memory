@@ -202,32 +202,47 @@ class FlightInfo(Problem):
   def create(cls, num_flights=1, **kwargs):
 
     airlines = []
-    with open(_dict_path('airlines.txt')) as f:
-      for line in f:
-        code, name = line.strip().split(',')
-        airlines.append((code, name))
-    
+    airlines_path = _dict_path('airlines.txt')
+    if airlines_path.exists():
+        with open(airlines_path) as f:
+            for line in f:
+                line = line.strip()
+                if ',' in line:
+                    code, name = line.split(',', 1)
+                    airlines.append((code.strip(), name.strip()))
+    if not airlines:
+        airlines = [('XX', 'Unknown')]
 
     destinations = []
-    with open(_dict_path('cities.txt')) as f:
-      destinations = [line.strip() for line in f if line.strip()]
-    
+    cities_path = _dict_path('cities.txt')
+    if cities_path.exists():
+        with open(cities_path) as f:
+            destinations = [line.strip() for line in f if line.strip()]
+    if not destinations:
+        destinations = ['Unknown']
+
     flights = []
     used_airlines = []
     used_destinations = []
     used_gates = []
-    
+
     def generate_random_gate():
       gate_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
       letter = random.choice(gate_letters)
       number = random.randint(1, 99)
       return f"{letter}{number}"
-    
+
     for i in range(num_flights):
-      airline_code, airline_name = random.choice([a for a in airlines if a[0] not in used_airlines])
+      available_airlines = [a for a in airlines if a[0] not in used_airlines]
+      if not available_airlines:
+        available_airlines = airlines
+      airline_code, airline_name = random.choice(available_airlines)
       used_airlines.append(airline_code)
-      
-      destination = random.choice([d for d in destinations if d not in used_destinations])
+
+      available_destinations = [d for d in destinations if d not in used_destinations]
+      if not available_destinations:
+        available_destinations = destinations
+      destination = random.choice(available_destinations)
       used_destinations.append(destination)
       
       gate = generate_random_gate()
@@ -294,29 +309,34 @@ class TokyoMetro(Problem):
               metro_lines[current_line_english]['english'].append(pair.strip())
               metro_lines[current_line_english]['kanji'].append(pair.strip())
     
-    # Generate itinerary with num_stations stops
+    # Only use lines that have at least one station (avoid randint(0, -1))
+    lines_with_stations = {
+        k: v for k, v in metro_lines.items()
+        if len(v['english']) > 0
+    }
+    if not lines_with_stations:
+        raise ValueError("tokyo_metro.txt has no lines with stations")
+
     itinerary = []
     used_combinations = set()
-    
-    # Generate starting time (7:00 - 21:00)
+
     start_hour = random.randint(7, 21)
     start_minute = random.choice([0, 15, 30, 45])
     current_minutes = start_hour * 60 + start_minute
-    
+
     for i in range(num_stations):
-      # Pick a random line and station
-      line_name = random.choice(list(metro_lines.keys()))
-      line_data = metro_lines[line_name]
+      line_names = list(lines_with_stations.keys())
+      line_name = random.choice(line_names)
+      line_data = lines_with_stations[line_name]
       station_index = random.randint(0, len(line_data['english']) - 1)
       english_station = line_data['english'][station_index]
       kanji_station = line_data['kanji'][station_index]
-      
-      # Ensure we don't repeat the same line-station combination
+
       combo = (line_name, english_station)
       attempts = 0
       while combo in used_combinations and attempts < 50:
-        line_name = random.choice(list(metro_lines.keys()))
-        line_data = metro_lines[line_name]
+        line_name = random.choice(line_names)
+        line_data = lines_with_stations[line_name]
         station_index = random.randint(0, len(line_data['english']) - 1)
         english_station = line_data['english'][station_index]
         kanji_station = line_data['kanji'][station_index]
@@ -787,8 +807,15 @@ class Atc(Problem):
   @classmethod
   def _load_airlines(cls):
       if cls._airlines is None:
-          with open(_dict_path('airlines.txt')) as f:
-              cls._airlines = [line.strip().split(',')[0] for line in f]
+          path = _dict_path('airlines.txt')
+          cls._airlines = []
+          if path.exists():
+              with open(path) as f:
+                  for line in f:
+                      if ',' in line:
+                          cls._airlines.append(line.strip().split(',', 1)[0].strip())
+          if not cls._airlines:
+              cls._airlines = ['XX']
 
   @classmethod
   def _load_frequencies(cls):
@@ -827,8 +854,9 @@ class Atc(Problem):
       departure_heading = random.randint(1, 36) * 10
       initial_altitude = random.choice([3000, 4000, 5000, 6000, 8000, 10000])
       
-      # Departure frequencies
-      departure_freq = random.choice(Atc._frequencies['approach'])
+      # Departure frequencies (fallback if dict missing or empty)
+      approach_list = Atc._frequencies.get('approach') or []
+      departure_freq = random.choice(approach_list) if approach_list else '121.00'
       
       instruction = f"{callsign}, runway {runway}, cleared for takeoff, fly heading {departure_heading:03d}, climb and maintain {initial_altitude}, squawk {squawk}, contact departure {departure_freq}"
       
@@ -848,8 +876,9 @@ class Atc(Problem):
       final_altitude = random.choice([2000, 2500, 3000, 3500, 4000])
       speed_restriction = random.choice([180, 200, 210, 220, 250])
       
-      # Approach frequencies  
-      approach_freq = random.choice(Atc._frequencies['tower'])
+      # Tower frequencies (fallback if dict missing or empty)
+      tower_list = Atc._frequencies.get('tower') or []
+      approach_freq = random.choice(tower_list) if tower_list else '118.00'
       
       instruction = f"{callsign}, descend and maintain {final_altitude}, reduce speed {speed_restriction} knots, cleared {approach_type} approach runway {runway}, contact tower {approach_freq}"
       
@@ -917,8 +946,13 @@ class FlightPlan(Problem):
   @classmethod
   def _load_vors(cls):
     if cls._vors is None:
-      with open(_dict_path('vors.txt')) as f:
-        cls._vors = [line.strip() for line in f]
+      path = _dict_path('vors.txt')
+      cls._vors = []
+      if path.exists():
+        with open(path) as f:
+          cls._vors = [line.strip() for line in f if line.strip()]
+      if not cls._vors:
+        cls._vors = ['VOR1']
 
   @classmethod
   def _load_frequencies(cls):
@@ -931,31 +965,32 @@ class FlightPlan(Problem):
     FlightPlan._load_frequencies()
     
     vor_list = FlightPlan._vors
-    approach_freqs = FlightPlan._frequencies['approach']
-    tower_freqs = FlightPlan._frequencies['tower']
-    ground_freqs = FlightPlan._frequencies['ground']
-    
-    # Generate flight plan waypoints
+    freqs = FlightPlan._frequencies
+    approach_freqs = freqs.get('approach') or []
+    tower_freqs = freqs.get('tower') or []
+    ground_freqs = freqs.get('ground') or []
+    _fallback_freq = '121.00'
+
     waypoints = []
     used_vors = set()
     for i in range(num_waypoints):
       available_vors = [v for v in vor_list if v not in used_vors]
-      if not available_vors:  # Fallback if we run out
+      if not available_vors:
         available_vors = vor_list
       vor = random.choice(available_vors)
       used_vors.add(vor)
       heading = random.randint(0, 359)
       altitude = random.choice([3000, 5000, 7000, 9000, 11000, 13000, 15000, 17000, 19000, 21000, 23000, 25000, 27000, 29000, 31000, 33000, 35000, 37000, 39000, 41000])
       freq_type = random.choice(['approach', 'tower', 'ground'])
-      
+
       if freq_type == 'approach':
-        freq = random.choice(approach_freqs)
+        freq = random.choice(approach_freqs) if approach_freqs else _fallback_freq
         contact = 'Approach'
       elif freq_type == 'tower':
-        freq = random.choice(tower_freqs)
+        freq = random.choice(tower_freqs) if tower_freqs else _fallback_freq
         contact = 'Tower'
       else:
-        freq = random.choice(ground_freqs)
+        freq = random.choice(ground_freqs) if ground_freqs else _fallback_freq
         contact = 'Ground'
       
       waypoint = f"{vor} {heading:03d}° {altitude:,}ft {freq}MHz {contact}"
