@@ -1,6 +1,7 @@
 import os
 import re
 import random
+import sys
 from pathlib import Path
 
 _UTILS_DIR = Path(__file__).resolve().parent
@@ -27,35 +28,43 @@ def format_problem_name(class_name: str) -> str:
     name = re.sub(r'([A-Z])([A-Z][a-z])', r'\1 \2', name)
     return name.strip()
 
-dict_paths = [
-    '/usr/share/dict/words',
-    str(_UTILS_DIR / 'dicts/common_english_words.txt'),
-    str(_UTILS_DIR / 'dicts/common_french_words.txt'),
-    str(_UTILS_DIR / 'dicts/german_words.txt'),
-]
+_DICTS_DIR = _UTILS_DIR / 'dicts'
+
+
+def _dict_path(name: str) -> Path:
+    return _DICTS_DIR / name
+
+
+_APP_DICT_NAMES = ('common_english_words.txt', 'common_french_words.txt', 'german_words.txt')
+_APP_DICT_PATHS = [str(_DICTS_DIR / name) for name in _APP_DICT_NAMES]
+dict_paths = ['/usr/share/dict/words'] + _APP_DICT_PATHS
 
 words = []
 
 
-def _dict_path(name: str) -> Path:
-    return _UTILS_DIR / 'dicts' / name
-
-
 def load_dicts(word_length_min=4, word_length_max=6):
+    if words:
+        return
+    if not _DICTS_DIR.is_dir():
+        print(f"Error: dicts folder not found: {_DICTS_DIR}", file=sys.stderr)
+        sys.exit(1)
+    for name in _APP_DICT_NAMES:
+        path = _DICTS_DIR / name
+        if not path.exists():
+            print(f"Error: dictionary file not found: {path}", file=sys.stderr)
+            sys.exit(1)
     for dict_path in dict_paths:
-        if not Path(dict_path).exists():
-            continue
         with open(dict_path) as f:
             words_tmp = [w.strip().lower() for w in f if w.strip().isalpha()]
             if "german" in dict_path:
                 words_tmp = [w.replace('ß', 'ss') for w in words_tmp]
             words.append([w for w in words_tmp if word_length_min <= len(w) <= word_length_max])
+    if not words or all(len(w) == 0 for w in words):
+        print("Error: all dictionary files are empty or contain no words in length range 4–6.", file=sys.stderr)
+        sys.exit(1)
 
 
 load_dicts()
-
-if not words or all(len(w) == 0 for w in words):
-    words = [['test', 'word', 'list', 'fall', 'back', 'data', 'here', 'more', 'some', 'make', 'take', 'from']]
 
 
 def _pick_word_list(min_size: int) -> list[str]:

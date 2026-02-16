@@ -1,7 +1,9 @@
 import gzip
 import json
 import statistics
+import sys
 import time
+import zlib
 from collections import defaultdict
 from pathlib import Path
 
@@ -14,7 +16,12 @@ def _read_file_content(path: Path) -> str:
     if not raw:
         return ''
     if raw[:2] == _GZIP_MAGIC:
-        return gzip.decompress(raw).decode('utf-8')
+        try:
+            return gzip.decompress(raw).decode('utf-8')
+        except (OSError, zlib.error) as e:
+            print(f"Error: sessions file is corrupt or not valid gzip: {path}", file=sys.stderr)
+            print(f"  {e}", file=sys.stderr)
+            sys.exit(1)
     return raw.decode('utf-8')
 
 
