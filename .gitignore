@@ -4,6 +4,8 @@ __pycache__/
 .DS_Store
 # Personal training history, its backups and temporary files
 py_app/data/
+# Large source dictionary that the app does not read
+dicts/JMdict_e
 # Build output and dependencies
 js_app/dist/
 js_app/dist-electron/
