@@ -1,0 +1,1946 @@
+import random
+import re
+from typing import ClassVar
+
+from classes import Problem, normalize_answer
+from unidecode import unidecode
+from utils import (
+    _dict_path,
+    _pick_word_list,
+    fetch_gnews_headlines,
+    load_airline_codes,
+    load_dicts,
+    load_frequencies,
+    mark_headline_used,
+    rnd_number,
+    used_headlines,
+    words,
+)
+
+
+def _color_letters(text, names):
+    """Read a color answer as letters: 'r g b', 'r, g, b' and 'red green blue' are all 'rgb'."""
+    return ''.join(names.get(token, token) for token in re.split(r'[\s,]+', normalize_answer(text)))
+
+
+class WordList(Problem):
+  @classmethod
+  def create(cls, num_words=4, **kwargs):
+    wlist = _pick_word_list(num_words)
+    sample = random.sample(wlist, num_words)
+    memorize = ' '.join(sample)
+    prompt = random.choice(['▶', '◀'])
+    solution = ' '.join(sample[::1 if prompt == '▶' else -1])
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class NameList(Problem):
+  @classmethod
+  def create(cls, num_names=4, **kwargs):
+    names = []
+    names_path = _dict_path('first_names.txt')
+    if names_path.exists():
+        with open(names_path) as f:
+            names = [line.strip() for line in f if line.strip()]
+    if not names:
+        names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Hank']
+    
+    sample = random.sample(names, num_names)
+    memorize = '\n'.join(sample)
+    prompt = random.choice(['▶', '◀'])
+    solution = '\n'.join(sample[::1 if prompt == '▶' else -1])
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+
+class WordPairs(Problem):
+  @classmethod
+  def create(cls, num_pairs=3, **kwargs):
+    wlist = _pick_word_list(2 * num_pairs)
+    sample = random.sample(wlist, 2 * num_pairs)
+    pairs = [(sample[2*i], sample[1 + 2 * i]) for i in range(num_pairs)]
+    memorize = '\n'.join(f'{p[0]}:{p[1]}' for p in pairs)
+    chosen = random.randint(0, num_pairs - 1)
+    prompt = f'? {pairs[chosen][0]}'
+    solution = pairs[chosen][1]
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+
+class WordNumberPairs(Problem):
+  @classmethod
+  def create(cls, num_pairs=3, number_length=4, **kwargs):
+    wlist = _pick_word_list(num_pairs)
+    sample = random.sample(wlist, num_pairs)
+    pairs = [(sample[i], rnd_number(number_length)) for i in range(num_pairs)]
+    memorize = '\n'.join(f'{p[0]}:{p[1]}' for p in pairs)
+    chosen = random.randint(0, num_pairs - 1)
+    prompt = f'? {pairs[chosen][0]}'
+    solution = pairs[chosen][1]
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+
+class Number(Problem):
+  @classmethod
+  def create(cls, number_length=6, **kwargs):
+    memorize = rnd_number(number_length)
+    prompt = random.choice(['▶', '◀'])
+    solution = ''.join(memorize[::1 if prompt == '▶' else -1])
+    return cls(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
+
+
+class NumberLong(Problem):
+  @classmethod
+  def create(cls, number_length=8, **kwargs):
+    prompt = '▶'
+    memorize = rnd_number(number_length)
+    solution = memorize
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class NumberList(Problem):
+  @classmethod
+  def create(cls, number_length=2, num_numbers=4, **kwargs):
+    sample = [rnd_number(number_length) for _ in range(num_numbers)]
+    memorize = ' '.join(sample)
+    prompt = random.choice(['▶', '◀'])
+    solution = ' '.join(sample[::1 if prompt == '▶' else -1])
+    return cls(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
+
+
+class NumberCalculate(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    a, b = random.randint(1, 20), random.randint(1, 20)
+    memorize = f'{a} ♦ {b}'
+    prompt = random.choice(['+', '-', '*'])
+    ops = {'+': a + b, '-': a - b, '*': a * b}
+    solution = str(ops[prompt])
+    return cls(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
+
+
+class RandomLetters(Problem):
+  @classmethod
+  def create(cls, num_letters=8, **kwargs):
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+    memorize = ''.join([random.choice(alphabet) for _ in range(num_letters)])
+    prompt = '▶'
+    solution = memorize
+    return cls(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
+
+
+class RandomLettersAndNumbers(Problem):
+  @classmethod
+  def create(cls, size=8, **kwargs):
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+    numbers = '0123456789'
+    memorize = ''.join([random.choice(alphabet + numbers) for _ in range(size)])
+    prompt = '='
+    solution = memorize
+    return cls(cls.display_name(), memorize, prompt, solution, 2000, 'single line')
+
+
+class WordBackward(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    wlist = _pick_word_list(1)
+    memorize = random.choice(wlist)
+    prompt = '◀'
+    solution = ''.join(memorize[::-1])
+    return cls(cls.display_name(), memorize + ' ▶▶', prompt, solution, 1000, 'single line')
+
+
+class WordForward(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    wlist = _pick_word_list(1)
+    memorize = random.choice(wlist)[::-1]
+    prompt = '▶'
+    solution = ''.join(memorize[::-1])
+    return cls(cls.display_name(), memorize + ' <<', prompt, solution, 1000, 'single line')
+
+
+class ArrowDirection(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    # Unicode arrows from range U+2190 to U+21FF
+    arrows = {
+      'left': '←',
+      'up': '↑',
+      'right': '→',
+      'down': '↓'
+    }
+    
+    directions = ['left', 'up', 'right', 'down']
+    
+    # Create a single line of 4-6 arrows
+    num_arrows = random.randint(4, 6)
+    
+    # Generate random arrows for the line
+    arrow_line = []
+    arrow_directions = []
+    
+    for i in range(num_arrows):
+      direction = random.choice(directions)
+      arrow_line.append(arrows[direction])
+      arrow_directions.append(direction)
+    
+    # Create display string with spacing
+    memorize = ' '.join(arrow_line)
+    
+    # Choose a random position to ask about (1-indexed for user)
+    ask_position = random.randint(1, num_arrows)
+    
+    prompt = f"{ask_position}"
+    solution = arrow_directions[ask_position - 1]  # Convert back to 0-indexed
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 2500, 'single line')
+
+
+class GeometricForms(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    # Unicode geometric shapes from range U+25A0 to U+25FF
+    shapes = {
+      'square': ['■', '□', '▪', '▫'],     # U+25A0, U+25A1, U+25AA, U+25AB
+      'triangle': ['▲', '△', '▼', '▽'],   # U+25B2, U+25B3, U+25BC, U+25BD
+      'circle': ['●', '○', '◉', '◯']      # U+25CF, U+25CB, U+25C9, U+25EF
+    }
+    
+    form_names = ['square', 'triangle', 'circle']
+    
+    # Create a line of 4-6 shapes
+    num_shapes = random.randint(4, 6)
+    
+    # Generate random shapes for the line
+    shape_line = []
+    shape_forms = []
+    
+    for i in range(num_shapes):
+      form_name = random.choice(form_names)
+      shape_char = random.choice(shapes[form_name])
+      shape_line.append(shape_char)
+      shape_forms.append(form_name)
+    
+    # Create display string with spacing
+    memorize = ' '.join(shape_line)
+    
+    # Choose a random position to ask about (1-indexed for user)
+    ask_position = random.randint(1, num_shapes)
+    
+    prompt = f"{ask_position}"
+    solution = shape_forms[ask_position - 1]  # Convert back to 0-indexed
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 2500, 'single line')
+
+
+class FlightInfo(Problem):
+  @classmethod
+  def create(cls, num_flights=1, **kwargs):
+
+    airlines = load_airline_codes() or ['XX']
+
+    destinations = []
+    cities_path = _dict_path('cities.txt')
+    if cities_path.exists():
+        with open(cities_path) as f:
+            destinations = [line.strip() for line in f if line.strip()]
+    if not destinations:
+        destinations = ['Unknown']
+
+    flights = []
+    used_airlines = []
+    used_destinations = []
+    used_gates = []
+
+    def generate_random_gate():
+      gate_letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      letter = random.choice(gate_letters)
+      number = random.randint(1, 99)
+      return f"{letter}{number}"
+
+    for i in range(num_flights):
+      available_airlines = [a for a in airlines if a not in used_airlines]
+      if not available_airlines:
+        available_airlines = airlines
+      airline_code = random.choice(available_airlines)
+      used_airlines.append(airline_code)
+
+      available_destinations = [d for d in destinations if d not in used_destinations]
+      if not available_destinations:
+        available_destinations = destinations
+      destination = random.choice(available_destinations)
+      used_destinations.append(destination)
+      
+      gate = generate_random_gate()
+      while gate in used_gates:
+        gate = generate_random_gate()
+      used_gates.append(gate)
+      
+      flight_num = random.randint(100, 9999)
+      
+      hour = random.randint(6, 23)
+      minute = random.choice([0, 15, 30, 45])
+      time_str = f"{hour:02d}:{minute:02d}"
+      
+      flight_info = f"{airline_code} {flight_num} {destination} {gate} {time_str}"
+      flights.append(flight_info)
+    
+    memorize = ""
+    for i, flight in enumerate(flights, 1):
+      if i > 1:
+        memorize += "\n"
+      memorize += f"{i}. {flight}"
+    
+    ask_flight = random.randint(1, num_flights)
+    prompt = f"{ask_flight}"
+    solution = flights[ask_flight - 1]  # Convert to 0-indexed
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 5000, 'single line')
+
+
+class TokyoMetro(Problem):
+  @classmethod
+  def create(cls, num_stations=3, **kwargs):
+    # Load Tokyo Metro lines and stations from file
+    metro_lines = {}
+    current_line_english = None
+    current_line_kanji = None
+    
+    with open(_dict_path('tokyo_metro.txt')) as f:
+      for line in f:
+        line = line.strip()
+        if not line:
+          continue
+        
+        # Check if this is a line name (format "English:Kanji")
+        if ',' not in line and ':' in line:
+          english_line, kanji_line = line.split(':', 1)
+          current_line_english = english_line.strip()
+          current_line_kanji = kanji_line.strip()
+          metro_lines[current_line_english] = {
+            'english': [],
+            'kanji': [],
+            'line_kanji': current_line_kanji
+          }
+        elif current_line_english and ',' in line:
+          # This is a station list for the current line in format "English:Kanji"
+          station_pairs = [station.strip() for station in line.split(',')]
+          for pair in station_pairs:
+            if ':' in pair:
+              english, kanji = pair.split(':', 1)
+              metro_lines[current_line_english]['english'].append(english.strip())
+              metro_lines[current_line_english]['kanji'].append(kanji.strip())
+            else:
+              # Fallback for stations without kanji
+              metro_lines[current_line_english]['english'].append(pair.strip())
+              metro_lines[current_line_english]['kanji'].append(pair.strip())
+    
+    # Only use lines that have at least one station (avoid randint(0, -1))
+    lines_with_stations = {
+        k: v for k, v in metro_lines.items()
+        if len(v['english']) > 0
+    }
+    if not lines_with_stations:
+        raise ValueError("tokyo_metro.txt has no lines with stations")
+
+    itinerary = []
+    used_combinations = set()
+
+    start_hour = random.randint(7, 21)
+    start_minute = random.choice([0, 15, 30, 45])
+    current_minutes = start_hour * 60 + start_minute
+
+    for i in range(num_stations):
+      line_names = list(lines_with_stations.keys())
+      line_name = random.choice(line_names)
+      line_data = lines_with_stations[line_name]
+      station_index = random.randint(0, len(line_data['english']) - 1)
+      english_station = line_data['english'][station_index]
+      kanji_station = line_data['kanji'][station_index]
+
+      combo = (line_name, english_station)
+      attempts = 0
+      while combo in used_combinations and attempts < 50:
+        line_name = random.choice(line_names)
+        line_data = lines_with_stations[line_name]
+        station_index = random.randint(0, len(line_data['english']) - 1)
+        english_station = line_data['english'][station_index]
+        kanji_station = line_data['kanji'][station_index]
+        combo = (line_name, english_station)
+        attempts += 1
+      
+      used_combinations.add(combo)
+      
+      # Format time
+      hour = (current_minutes // 60) % 24
+      minute = current_minutes % 60
+      time_str = f"{hour:02d}:{minute:02d}"
+      
+      itinerary.append((english_station, kanji_station, time_str))
+      
+      # Add 5-15 minutes for next station
+      current_minutes += random.randint(5, 15)
+    
+    # Create memorize string (using kanji for display)
+    memorize_parts = []
+    for i, (english_station, kanji_station, time) in enumerate(itinerary):
+      part = f"{kanji_station} {time}"
+      memorize_parts.append(part)
+    
+    memorize = " → ".join(memorize_parts)
+    
+    # Choose which station to ask about (1-indexed)
+    ask_position = random.randint(1, num_stations)
+    prompt = f"{ask_position}"
+    # Solution uses English (what they need to type)
+    solution = f"{itinerary[ask_position - 1][0]} {itinerary[ask_position - 1][2]}"
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class Appointments(Problem):
+  @classmethod
+  def create(cls, num_appointments=3, **kwargs):
+    with open(_dict_path('appointments.txt')) as f:
+      appointment_types = [line.strip() for line in f if line.strip()]
+    
+    # Generate appointment times and types
+    appointments = []
+    used_times = set()
+    used_types = set()
+    
+    # Generate starting time between 8:00 and 17:00 (office hours)
+    for i in range(num_appointments):
+      # Generate a unique time
+      attempts = 0
+      while attempts < 100:  # Prevent infinite loops
+        hour = random.randint(8, 17)
+        minute = random.choice([0, 15, 30, 45])  # Quarter-hour intervals
+        time_str = f"{hour:02d}:{minute:02d}"
+        
+        if time_str not in used_times:
+          used_times.add(time_str)
+          
+          # Pick a unique appointment type
+          available_types = [t for t in appointment_types if t not in used_types]
+          if not available_types:  # If all types used, reset
+            used_types.clear()
+            available_types = appointment_types
+          
+          appointment_type = random.choice(available_types)
+          used_types.add(appointment_type)
+          
+          appointments.append((time_str, appointment_type))
+          break
+        attempts += 1
+      
+      # If we couldn't find a unique time, just use a random one
+      if attempts >= 100:
+        hour = random.randint(8, 17)
+        minute = random.choice([0, 15, 30, 45])
+        time_str = f"{hour:02d}:{minute:02d}"
+        appointment_type = random.choice(appointment_types)
+        appointments.append((time_str, appointment_type))
+    
+    # Sort appointments by time for realistic scheduling
+    appointments.sort(key=lambda x: x[0])
+    
+    # Create memorize string on one line
+    memorize_parts = []
+    for i, (time, apt_type) in enumerate(appointments, 1):
+      memorize_parts.append(f"{i}. {time} {apt_type}")
+    
+    memorize = "\n".join(memorize_parts)
+    
+    # Choose which appointment to ask about (1-indexed)
+    ask_appointment = random.randint(1, num_appointments)
+    prompt = f"{ask_appointment}"
+    solution = f"{appointments[ask_appointment - 1][0]} {appointments[ask_appointment - 1][1]}"
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 3500, 'multiline')
+
+
+class Anagram(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    # Use existing word lists from dictionaries (length 4-6)
+    if not words:
+      load_dicts(4, 6)  # Load words of length 4-6
+    
+    # Only use English (index 1) and French (index 2) common word dictionaries
+    # dict_paths[1] = 'dicts/common_english_words.txt'
+    # dict_paths[2] = 'dicts/common_french_words.txt'
+    available_dicts = []
+    dict_languages = {}
+    
+    if len(words) > 1 and len(words[1]) > 0:  # English dictionary
+      available_dicts.append(1)
+      dict_languages[1] = 'English'
+    
+    if len(words) > 2 and len(words[2]) > 0:  # French dictionary
+      available_dicts.append(2)
+      dict_languages[2] = 'French'
+    
+    if not available_dicts:
+      try:
+        wlist = _pick_word_list(1)
+        original_word = random.choice(wlist)
+        dict_index = 0
+        language = 'English'
+      except ValueError:
+        return cls(cls.display_name(), 'No words available', '>', 'error', 2000, 'single line')
+    else:
+      dict_index = random.choice(available_dicts)
+      language = dict_languages[dict_index]
+      original_word = random.choice(words[dict_index])
+    
+    # Create anagram by shuffling letters
+    anagram_word = create_anagram(original_word)
+    
+    # Make sure anagram is different from original
+    attempts = 0
+    while anagram_word.lower() == original_word.lower() and attempts < 20:
+      anagram_word = create_anagram(original_word)
+      attempts += 1
+    
+    # Combine anagram and language in prompt
+    memorize = f"{anagram_word} ({language})"
+    
+    # Create a custom Anagram instance to store language info
+    problem = Anagram(cls.display_name(), memorize, '▶', original_word, 3000, 'single line')
+    # Store additional info for evaluation
+    problem._dict_index = dict_index
+    return problem
+
+  def evaluate_solution(self, user_input):
+    """Custom evaluation that accepts valid anagrams from the dictionary"""
+    if user_input is None:
+      return 0.0
+
+    # Normalize with unidecode to remove accents
+    user_normalized = unidecode(str(user_input).lower().strip())
+    solution_normalized = unidecode(self.solution.lower())
+    
+    # First check exact match
+    if user_normalized == solution_normalized:
+      return 1.0
+    
+    # Check if it's a valid anagram and in the dictionary
+    if self._is_valid_anagram(user_normalized, solution_normalized):
+      return 1.0
+    
+    # Fall back to standard evaluation (Levenshtein distance)
+    return super().evaluate_solution(user_input)
+  
+  def _is_valid_anagram(self, user_word, original_word):
+    """Check if user_word is a valid anagram of original_word and exists in dictionary"""
+    
+    # Check if letters match (anagram test) - both should already be normalized
+    if sorted(user_word) != sorted(original_word):
+      return False
+    
+    # Check if the anagram exists in the appropriate dictionary
+    if not hasattr(self, '_dict_index'):
+      return False
+    
+    # Ensure words are loaded
+    if not words:
+      load_dicts(4, 6)
+    
+    # Check if user's word exists in the same dictionary that was used
+    # Normalize dictionary words with unidecode for comparison
+    dict_index = getattr(self, '_dict_index', 1)
+    if dict_index < len(words) and len(words[dict_index]) > 0:
+      normalized_dict_words = [unidecode(w.lower()) for w in words[dict_index]]
+      return user_word in normalized_dict_words
+    
+    return False
+
+
+def create_anagram(word):
+  """Create an anagram by shuffling the letters of a word"""
+  letters = list(word.lower())
+  random.shuffle(letters)
+  return ''.join(letters)
+
+
+class SequenceRecognition(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate a sequence recognition problem with the first 5 elements"""
+    # Dictionary of sequence generators - easy to add new ones!
+    sequence_generators = {
+      'arithmetic': SequenceRecognition._generate_arithmetic,
+      'geometric': SequenceRecognition._generate_geometric,
+      'fibonacci': SequenceRecognition._generate_fibonacci,
+      'squares': SequenceRecognition._generate_squares,
+      'powers_of_2': SequenceRecognition._generate_powers_of_2,
+      'triangular': SequenceRecognition._generate_triangular,
+      'cubes': SequenceRecognition._generate_cubes,
+      'primes': SequenceRecognition._generate_primes,
+      'factorial': SequenceRecognition._generate_factorial,
+      'alternating': SequenceRecognition._generate_alternating,
+      'recursive': SequenceRecognition._generate_recursive,
+      'exponential': SequenceRecognition._generate_exponential,
+      'lucas': SequenceRecognition._generate_lucas,
+      'padovan': SequenceRecognition._generate_padovan,
+      'catalan': SequenceRecognition._generate_catalan,
+    }
+    
+    # Randomly select a sequence type
+    sequence_type = random.choice(list(sequence_generators.keys()))
+    generator = sequence_generators[sequence_type]
+    
+    # Generate the sequence (first 6 elements)
+    sequence = generator()
+    
+    # Show first 5, ask for 6th
+    shown_sequence = sequence[:5]
+    next_element = sequence[5]
+    
+    # Format the problem
+    memorize = ' '.join(map(str, shown_sequence))
+    prompt = '▶'
+    solution = str(next_element)
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
+  
+  @staticmethod
+  def _generate_arithmetic():
+    """Arithmetic sequence: a, a+d, a+d*2, ..."""
+    start = random.randint(1, 20)
+    diff = random.randint(2, 10)
+    return [start + i * diff for i in range(6)]
+  
+  @staticmethod
+  def _generate_geometric():
+    """Geometric sequence: a, a*r, a*r^2, ..."""
+    start = random.randint(1, 5)
+    ratio = random.choice([2, 3])  # Keep numbers manageable
+    return [start * (ratio ** i) for i in range(6)]
+  
+  @staticmethod
+  def _generate_fibonacci():
+    """Fibonacci-like sequence: a, b, a+b, a+2b, 2a+3b, ..."""
+    a, b = random.randint(1, 5), random.randint(1, 5)
+    sequence = [a, b]
+    for i in range(4):  # Generate 4 more elements
+      sequence.append(sequence[-1] + sequence[-2])
+    return sequence
+  
+  @staticmethod
+  def _generate_squares():
+    """Perfect squares: 1^2, 2^2, 3^2, ..."""
+    start = random.randint(1, 8)
+    return [(start + i) ** 2 for i in range(6)]
+  
+  @staticmethod
+  def _generate_powers_of_2():
+    """Powers of 2: 2^1, 2^2, 2^3, ..."""
+    start_power = random.randint(0, 4)
+    return [2 ** (start_power + i) for i in range(6)]
+  
+  @staticmethod
+  def _generate_triangular():
+    """Triangular numbers: 1, 3, 6, 10, 15, ..."""
+    start = random.randint(1, 5)
+    sequence = []
+    for i in range(6):
+      n = start + i
+      triangular = n * (n + 1) // 2
+      sequence.append(triangular)
+    return sequence
+  
+  @staticmethod
+  def _generate_cubes():
+    """Perfect cubes: 1^3, 2^3, 3^3, ..."""
+    start = random.randint(1, 6)
+    return [(start + i) ** 3 for i in range(6)]
+
+  @staticmethod
+  def _generate_primes():
+    """Prime numbers sequence"""
+    primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97]
+    start_idx = random.randint(0, len(primes) - 6)
+    return primes[start_idx:start_idx + 6]
+
+  @staticmethod
+  def _generate_factorial():
+    """Factorial sequence: 1!, 2!, 3!, ..."""
+    start = random.randint(1, 4)
+    sequence = []
+    for i in range(6):
+      n = start + i
+      factorial = 1
+      for j in range(1, n + 1):
+        factorial *= j
+      sequence.append(factorial)
+    return sequence
+
+  @staticmethod
+  def _generate_alternating():
+    """Alternating arithmetic sequence: a, a+d, a+2d, a+3d, a+4d, a+5d with alternating signs"""
+    start = random.randint(1, 10)
+    diff = random.randint(2, 8)
+    sequence = []
+    for i in range(6):
+      if i % 2 == 0:
+        sequence.append(start + i * diff)
+      else:
+        sequence.append(-(start + i * diff))
+    return sequence
+
+  @staticmethod
+  def _generate_recursive():
+    """Recursive sequence: a(n) = a(n-1) + a(n-2) + c"""
+    a, b = random.randint(1, 5), random.randint(1, 5)
+    c = random.randint(1, 3)
+    sequence = [a, b]
+    for i in range(4):
+      sequence.append(sequence[-1] + sequence[-2] + c)
+    return sequence
+
+  @staticmethod
+  def _generate_exponential():
+    """Exponential sequence: a * b^n"""
+    a = random.randint(1, 3)
+    b = random.choice([2, 3, 4])
+    return [a * (b ** i) for i in range(6)]
+
+  @staticmethod
+  def _generate_lucas():
+    """Lucas sequence: L(n) = L(n-1) + L(n-2) with L(0)=2, L(1)=1"""
+    sequence = [2, 1]
+    for i in range(4):
+      sequence.append(sequence[-1] + sequence[-2])
+    return sequence
+
+  @staticmethod
+  def _generate_padovan():
+    """Padovan sequence: P(n) = P(n-2) + P(n-3) with P(0)=1, P(1)=1, P(2)=1"""
+    sequence = [1, 1, 1]
+    for i in range(3):
+      sequence.append(sequence[-2] + sequence[-3])
+    return sequence
+
+  @staticmethod
+  def _generate_catalan():
+    """Catalan numbers: C(n) = (2n)!/(n!(n+1)!)"""
+    def catalan(n):
+      if n <= 1:
+        return 1
+      return catalan(n-1) * (4*n - 2) // (n + 1)
+    
+    start = random.randint(0, 3)
+    return [catalan(start + i) for i in range(6)]
+
+
+class Metar(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate a METAR/TAF aviation weather report memorization problem"""
+    
+    # Airport codes (mix of major international airports)
+    airports = ['KJFK', 'KLAX', 'KORD', 'KATL', 'KDEN', 'KDFW', 'KSEA', 'KLAS', 
+                'KMIA', 'KBOS', 'KPHX', 'KSFO', 'KIAD', 'KMSP', 'KDTW', 'KPHL',
+                'EGLL', 'LFPG', 'EDDF', 'EHAM', 'LIRF', 'LEMD', 'LOWW', 'ESSA',
+                'RJTT', 'VHHH', 'WSSS', 'YSSY', 'NZAA', 'OMDB', 'OTHH', 'RKSI',
+                'CYYZ', 'CYVR', 'SBGR', 'SAEZ', 'FACT', 'HECA', 'VIDP', 'UUEE']
+    
+    # Generate METAR components
+    airport = random.choice(airports)
+    
+    # Date/time (DDHHMMZ format)
+    day = random.randint(1, 31)
+    hour = random.randint(0, 23)
+    minute = random.choice([0, 30])  # Usually on the hour or half-hour
+    datetime_str = f"{day:02d}{hour:02d}{minute:02d}Z"
+    
+    # Wind (direction/speed)
+    wind_dir = random.randint(1, 36) * 10  # Wind direction in 10-degree increments
+    wind_speed = random.randint(5, 25)
+    is_variable = random.random() < 0.1  # 10% chance of variable winds
+    if is_variable:
+      wind = "VRB"
+    else:
+      wind = f"{wind_dir:03d}"
+    wind += f"{wind_speed:02d}KT"
+    
+    # Visibility
+    visibility = random.choice(['10SM', '7SM', '5SM', '3SM', '1SM', '1/2SM'])
+    
+    # Weather phenomena (optional)
+    weather_phenomena = ['', '-RA', 'RA', '+RA', '-SN', 'SN', 'FG', 'BR', 'HZ']
+    weather = random.choice(weather_phenomena)
+    
+    # Cloud layers
+    cloud_types = ['FEW', 'SCT', 'BKN', 'OVC']
+    cloud_altitudes = ['008', '015', '025', '035', '050', '080', '120']
+    
+    if random.random() < 0.2:  # 20% chance of clear skies
+      clouds = 'CLR'
+    else:
+      cloud_type = random.choice(cloud_types)
+      cloud_alt = random.choice(cloud_altitudes)
+      clouds = f"{cloud_type}{cloud_alt}"
+    
+    # Temperature/Dewpoint
+    temp = random.randint(-10, 35)
+    dewpoint = temp - random.randint(0, 15)  # Dewpoint is always <= temperature
+    temp_str = f"{temp:02d}" if temp >= 0 else f"M{abs(temp):02d}"
+    dewpoint_str = f"{dewpoint:02d}" if dewpoint >= 0 else f"M{abs(dewpoint):02d}"
+    temp_dewpoint = f"{temp_str}/{dewpoint_str}"
+    
+    # Altimeter setting
+    altimeter = f"A{random.randint(2800, 3100)}"
+    
+    # Build complete METAR
+    metar_parts = [airport, datetime_str, wind, visibility]
+    if weather:
+      metar_parts.append(weather)
+    metar_parts.extend([clouds, temp_dewpoint, altimeter])
+    
+    full_metar = ' '.join(metar_parts)
+    
+    # Choose what to ask for
+    question_types = [
+      ('airport', airport, 'Airport code?'),
+      ('wind_direction', "VRB" if is_variable else f"{wind_dir:03d}", 'Wind direction?'),
+      ('wind_speed', f"{wind_speed}", 'Wind speed (knots)?'),
+      ('visibility', visibility, 'Visibility?'),
+      ('clouds', clouds, 'Cloud coverage?'),
+      ('temperature', str(temp), 'Temperature (°C)?'),
+      ('altimeter', altimeter, 'Altimeter setting?')
+    ]
+    
+    _, answer, prompt = random.choice(question_types)
+
+    return cls(cls.display_name(), full_metar, prompt, answer, 6000, 'single line')
+
+  @staticmethod
+  def _as_number(text):
+    """Read a METAR number: '05' is 5 and 'M03' is -3. Returns None otherwise."""
+    match = re.fullmatch(r'([M-]?)(\d+)', str(text).strip().upper())
+    if not match:
+      return None
+    value = int(match.group(2))
+    return -value if match.group(1) else value
+
+  def evaluate_solution(self, user_input):
+    """Accept a number as the report shows it ('05', 'M03') or as a plain number."""
+    if user_input is None:
+      return 0.0
+    expected = self._as_number(self.solution)
+    if expected is not None and self._as_number(user_input) == expected:
+      return 1.0
+    return super().evaluate_solution(user_input)
+
+
+class Atc(Problem):
+  _airlines = None
+  _frequencies = None
+
+  @classmethod
+  def _load_airlines(cls):
+      if cls._airlines is None:
+          cls._airlines = load_airline_codes() or ['XX']
+
+  @classmethod
+  def _load_frequencies(cls):
+      if cls._frequencies is None:
+          cls._frequencies = load_frequencies()
+
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate ATC IFR departure/landing instructions"""
+    Atc._load_airlines()
+    Atc._load_frequencies()
+    
+    # Aircraft callsigns (mix of airlines and general aviation)
+    flight_numbers = [f"{random.choice(Atc._airlines)}{random.randint(100, 9999)}" for _ in range(5)]
+    ga_callsigns = [f"N{random.randint(100, 999)}{random.choice(['AB', 'CD', 'EF', 'GH'])}" for _ in range(3)]
+    callsigns = flight_numbers + ga_callsigns
+    
+    # Runways (common runway numbers)
+    runways = ['09L', '09R', '27L', '27R', '04L', '04R', '22L', '22R', 
+               '01L', '01R', '19L', '19R', '16L', '16R', '34L', '34R',
+               '08L', '26R', '06R', '24L', '12L', '30R', '15L', '33R',
+               '03L', '21R', '05L', '23R', '07L', '25R', '10L', '28R', 
+               '13L', '31R']
+    
+    # Instruction type (departure, arrival, or vector)
+    instruction_type = random.choice(['departure', 'arrival', 'vector'])
+    
+    callsign = random.choice(callsigns)
+    runway = random.choice(runways)
+    
+    if instruction_type == 'departure':
+      # Generate departure instruction
+      squawk = ''.join([str(random.randint(0, 7)) for _ in range(4)])
+      if squawk[0] == '0':  # Ensure first digit is 1-7
+        squawk = str(random.randint(1, 7)) + squawk[1:]
+      departure_heading = random.randint(1, 36) * 10
+      initial_altitude = random.choice([3000, 4000, 5000, 6000, 8000, 10000])
+      
+      # Departure frequencies (fallback if dict missing or empty)
+      approach_list = Atc._frequencies.get('approach') or []
+      departure_freq = random.choice(approach_list) if approach_list else '121.00'
+      
+      instruction = f"{callsign}, runway {runway}, cleared for takeoff, fly heading {departure_heading:03d}, climb and maintain {initial_altitude}, squawk {squawk}, contact departure {departure_freq}"
+      
+      # Choose what to ask for
+      questions = [
+        ('callsign', callsign, 'Aircraft callsign?'),
+        ('runway', runway, 'Departure runway?'),
+        ('heading', f"{departure_heading:03d}", 'Initial heading?'),
+        ('altitude', str(initial_altitude), 'Initial altitude?'),
+        ('squawk', squawk, 'Squawk code?'),
+        ('frequency', departure_freq, 'Departure frequency?')
+      ]
+      
+    elif instruction_type == 'arrival':
+      # Generate arrival instruction
+      approach_type = random.choice(['ILS', 'RNAV', 'VOR', 'GPS'])
+      final_altitude = random.choice([2000, 2500, 3000, 3500, 4000])
+      speed_restriction = random.choice([180, 200, 210, 220, 250])
+      
+      # Tower frequencies (fallback if dict missing or empty)
+      tower_list = Atc._frequencies.get('tower') or []
+      approach_freq = random.choice(tower_list) if tower_list else '118.00'
+      
+      instruction = f"{callsign}, descend and maintain {final_altitude}, reduce speed {speed_restriction} knots, cleared {approach_type} approach runway {runway}, contact tower {approach_freq}"
+      
+      # Choose what to ask for
+      questions = [
+        ('callsign', callsign, 'Aircraft callsign?'),
+        ('runway', runway, 'Landing runway?'),
+        ('altitude', str(final_altitude), 'Final altitude?'),
+        ('speed', str(speed_restriction), 'Speed restriction (knots)?'),
+        ('approach_type', approach_type, 'Approach type?'),
+        ('frequency', approach_freq, 'Tower frequency?')
+      ]
+      
+    else:  # vector
+      # Generate vector instruction
+      vector_types = [
+        'traffic',
+        'spacing', 
+        'final_approach',
+        'navigation',
+        'weather_deviation'
+      ]
+      
+      vector_type = random.choice(vector_types)
+      vector_heading = random.randint(1, 36) * 10
+      
+      if vector_type == 'traffic':
+        instruction = f"{callsign}, turn left heading {vector_heading:03d}, vector for traffic"
+        reason = "traffic"
+      elif vector_type == 'spacing':
+        instruction = f"{callsign}, turn right heading {vector_heading:03d}, vector for spacing"
+        reason = "spacing"
+      elif vector_type == 'final_approach':
+        instruction = f"{callsign}, turn left heading {vector_heading:03d}, vector to final approach course runway {runway}"
+        reason = "final approach"
+      elif vector_type == 'navigation':
+        waypoints = ['STAR1', 'FIXME', 'ABCDE', 'POINT', 'NAVPT', 'INTER']
+        waypoint = random.choice(waypoints)
+        instruction = f"{callsign}, turn right heading {vector_heading:03d}, vector direct {waypoint}"
+        reason = waypoint
+      else:  # weather_deviation
+        instruction = f"{callsign}, turn left heading {vector_heading:03d}, vector for weather deviation, advise when able to resume course"
+        reason = "weather"
+      
+      # Choose what to ask for
+      questions = [
+        ('callsign', callsign, 'Aircraft callsign?'),
+        ('heading', f"{vector_heading:03d}", 'Vector heading?'),
+        ('turn_direction', 'left' if 'left' in instruction else 'right', 'Turn direction?'),
+        ('reason', reason, 'Vector reason?')
+      ]
+      
+      if vector_type == 'final_approach':
+        questions.append(('runway', runway, 'Runway?'))
+    
+    _, answer, prompt = random.choice(questions)
+
+    return cls(cls.display_name(), instruction, prompt, answer, 5000, 'single line')
+
+
+class FlightPlan(Problem):
+  _vors = None
+  _frequencies = None
+
+  @classmethod
+  def _load_vors(cls):
+    if cls._vors is None:
+      path = _dict_path('vors.txt')
+      cls._vors = []
+      if path.exists():
+        with open(path) as f:
+          cls._vors = [line.strip() for line in f if line.strip()]
+      if not cls._vors:
+        cls._vors = ['VOR1']
+
+  @classmethod
+  def _load_frequencies(cls):
+    if cls._frequencies is None:
+      cls._frequencies = load_frequencies()
+
+  @classmethod
+  def create(cls, num_waypoints=5, **kwargs):
+    FlightPlan._load_vors()
+    FlightPlan._load_frequencies()
+    
+    vor_list = FlightPlan._vors
+    freqs = FlightPlan._frequencies
+    approach_freqs = freqs.get('approach') or []
+    tower_freqs = freqs.get('tower') or []
+    ground_freqs = freqs.get('ground') or []
+    _fallback_freq = '121.00'
+
+    waypoints = []
+    used_vors = set()
+    for i in range(num_waypoints):
+      available_vors = [v for v in vor_list if v not in used_vors]
+      if not available_vors:
+        available_vors = vor_list
+      vor = random.choice(available_vors)
+      used_vors.add(vor)
+      heading = random.randint(0, 359)
+      altitude = random.choice([3000, 5000, 7000, 9000, 11000, 13000, 15000, 17000, 19000, 21000, 23000, 25000, 27000, 29000, 31000, 33000, 35000, 37000, 39000, 41000])
+      freq_type = random.choice(['approach', 'tower', 'ground'])
+
+      if freq_type == 'approach':
+        freq = random.choice(approach_freqs) if approach_freqs else _fallback_freq
+        contact = 'Approach'
+      elif freq_type == 'tower':
+        freq = random.choice(tower_freqs) if tower_freqs else _fallback_freq
+        contact = 'Tower'
+      else:
+        freq = random.choice(ground_freqs) if ground_freqs else _fallback_freq
+        contact = 'Ground'
+      
+      # Keep the fields: a VOR name can contain a space ("RDU GKA"), so the
+      # formatted line cannot be split back into them.
+      waypoints.append({
+        'vor': vor,
+        'heading': f"{heading:03d}",
+        'altitude': str(altitude),
+        'frequency': freq,
+        'contact': contact,
+        'text': f"{vor} {heading:03d}° {altitude:,}ft {freq}MHz {contact}",
+      })
+    
+    memorize = '\n'.join(w['text'] for w in waypoints)
+    
+    # Choose a random waypoint to ask about
+    chosen_idx = random.randint(0, num_waypoints - 1)
+    
+    # Ask about different aspects randomly
+    aspect = random.choice(['vor', 'heading', 'altitude', 'frequency', 'contact'])
+    labels = {'vor': 'VOR', 'heading': 'Heading', 'altitude': 'Altitude',
+              'frequency': 'Frequency', 'contact': 'Contact'}
+    prompt = f"{labels[aspect]} at waypoint {chosen_idx + 1}?"
+    solution = waypoints[chosen_idx][aspect]
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 6000, 'multiline')
+
+  @staticmethod
+  def _as_number(text):
+    """Read a number as the plan shows it: '33,000ft', '121.5MHz', '090°'. None otherwise."""
+    cleaned = re.sub(r'[,\s°]', '', str(text).lower())
+    cleaned = re.sub(r'(ft|mhz)$', '', cleaned)
+    return float(cleaned) if re.fullmatch(r'\d+(\.\d+)?', cleaned) else None
+
+  def evaluate_solution(self, user_input):
+    """Accept a number in the form that the plan shows, with its unit."""
+    if user_input is None:
+      return 0.0
+    expected = self._as_number(self.solution)
+    if expected is not None and self._as_number(user_input) == expected:
+      return 1.0
+    return super().evaluate_solution(user_input)
+
+
+class Road(Problem):
+  _street_names = None
+
+  @classmethod
+  def _load_street_names(cls):
+      if cls._street_names is None:
+          with open(_dict_path('street_names.txt')) as f:
+              cls._street_names = [line.strip() for line in f]
+
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate a road itinerary with highway numbers, exits, and distances"""
+    Road._load_street_names()
+    
+    # Highway types and numbers
+    interstate_highways = ['I-5', 'I-10', 'I-95', 'I-75', 'I-40', 'I-80', 'I-90', 'I-35', 'I-15', 'I-25']
+    us_highways = ['US-101', 'US-1', 'US-50', 'US-66', 'US-Route 9', 'US-202', 'US-395', 'US-87']
+    state_routes = ['SR-1', 'SR-99', 'SR-85', 'CA-1', 'Route 128', 'SR-237', 'Route 2', 'SR-92']
+    
+    # Street/road names from file
+    street_names = Road._street_names
+    
+    # Generate itinerary steps
+    num_steps = random.randint(3, 5)
+    itinerary = []
+    
+    for i in range(num_steps):
+      if i == 0:  # First step - start on highway
+        highway = random.choice(interstate_highways + us_highways + state_routes)
+        direction = random.choice(['North', 'South', 'East', 'West'])
+        distance = round(random.uniform(5.2, 45.8), 1)
+        step = f"Take {highway} {direction} for {distance} km"
+        itinerary.append({
+          'type': 'highway',
+          'highway': highway,
+          'direction': direction,
+          'distance': distance,
+          'text': step
+        })
+        
+      elif i == num_steps - 1:  # Last step - destination
+        street = random.choice(street_names)
+        distance = round(random.uniform(0.3, 2.1), 1)
+        turn_direction = random.choice(['left', 'right'])
+        step = f"Turn {turn_direction} on {street}, destination in {distance} km"
+        itinerary.append({
+          'type': 'destination',
+          'street': street,
+          'distance': distance,
+          'turn': turn_direction,
+          'text': step
+        })
+        
+      else:  # Middle steps - exits and turns
+        if random.random() < 0.6:  # Highway exit
+          exit_num = random.randint(1, 99)
+          street = random.choice(street_names)
+          distance = round(random.uniform(1.2, 8.7), 1)
+          step = f"Take Exit {exit_num} for {street}, continue {distance} km"
+          itinerary.append({
+            'type': 'exit',
+            'exit': exit_num,
+            'street': street,
+            'distance': distance,
+            'text': step
+          })
+        else:  # Street turn
+          street = random.choice(street_names)
+          turn_direction = random.choice(['left', 'right', 'straight'])
+          distance = round(random.uniform(0.8, 6.3), 1)
+          if turn_direction == 'straight':
+            step = f"Continue straight on {street} for {distance} km"
+          else:
+            step = f"Turn {turn_direction} on {street}, continue {distance} km"
+          itinerary.append({
+            'type': 'turn',
+            'street': street,
+            'turn': turn_direction,
+            'distance': distance,
+            'text': step
+          })
+    
+    # Create full itinerary text
+    full_itinerary = '\n'.join([step['text'] for step in itinerary])
+    
+    # Choose what to ask for
+    step_to_ask = random.choice(itinerary)
+    step_index = itinerary.index(step_to_ask) + 1
+    
+    if step_to_ask['type'] == 'highway':
+      questions = [
+        ('highway', step_to_ask['highway'], f'Highway in step {step_index}?'),
+        ('direction', step_to_ask['direction'], f'Direction in step {step_index}?'),
+        ('distance', str(step_to_ask['distance']), f'Distance in step {step_index} (km)?')
+      ]
+    elif step_to_ask['type'] == 'exit':
+      questions = [
+        ('exit_number', str(step_to_ask['exit']), f'Exit number in step {step_index}?'),
+        ('street', step_to_ask['street'], f'Street name in step {step_index}?'),
+        ('distance', str(step_to_ask['distance']), f'Distance in step {step_index} (km)?')
+      ]
+    elif step_to_ask['type'] == 'turn':
+      questions = [
+        ('street', step_to_ask['street'], f'Street name in step {step_index}?'),
+        ('turn_direction', step_to_ask['turn'], f'Turn direction in step {step_index}?'),
+        ('distance', str(step_to_ask['distance']), f'Distance in step {step_index} (km)?')
+      ]
+    else:  # destination
+      questions = [
+        ('street', step_to_ask['street'], 'Final street name?'),
+        ('turn_direction', step_to_ask['turn'], 'Final turn direction?'),
+        ('distance', str(step_to_ask['distance']), 'Distance to destination (km)?')
+      ]
+    
+    _, answer, prompt = random.choice(questions)
+
+    return cls(cls.display_name(), full_itinerary, prompt, answer, 6000, 'multiline')
+
+
+class TimeDuration(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate time duration calculation problems"""
+    
+    # End strictly after start, within the same day. A start of 23:59 would
+    # leave no room, so the latest start is 23:58.
+    start_total = random.randint(0, 24 * 60 - 2)
+    end_total = random.randint(start_total + 1, 24 * 60 - 1)
+    
+    # Format times
+    start_time = f"{start_total // 60:02d}:{start_total % 60:02d}"
+    end_time = f"{end_total // 60:02d}:{end_total % 60:02d}"
+    
+    # Calculate duration
+    duration_minutes = end_total - start_total
+    duration_hours = duration_minutes // 60
+    duration_mins = duration_minutes % 60
+    
+    # Choose what to ask for
+    question_type = random.choice(['duration', 'start_time', 'end_time'])
+    
+    if question_type == 'duration':
+      memorize = f"Start: {start_time} | End: {end_time}"
+      prompt = "Duration (HH:MM)?"
+      solution = f"{duration_hours:02d}:{duration_mins:02d}"
+    elif question_type == 'start_time':
+      memorize = f"Duration: {duration_hours:02d}:{duration_mins:02d} | End: {end_time}"
+      prompt = "Start time (HH:MM)?"
+      solution = start_time
+    else:  # end_time
+      memorize = f"Start: {start_time} | Duration: {duration_hours:02d}:{duration_mins:02d}"
+      prompt = "End time (HH:MM)?"
+      solution = end_time
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class ChemicalFormula1(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate chemical formula memorization problems"""
+    
+    # Common chemical formulas with names
+    formulas = {
+      'H2O': 'Water',
+      'CO2': 'Carbon Dioxide',
+      'NaCl': 'Sodium Chloride',
+      'H2SO4': 'Sulfuric Acid',
+      'NaOH': 'Sodium Hydroxide',
+      'HCl': 'Hydrochloric Acid',
+      'NH3': 'Ammonia',
+      'CH4': 'Methane',
+      'C6H12O6': 'Glucose',
+      'CaCO3': 'Calcium Carbonate',
+      'Fe2O3': 'Iron Oxide',
+      'Al2O3': 'Aluminum Oxide',
+      'HNO3': 'Nitric Acid',
+      'H3PO4': 'Phosphoric Acid',
+      'KOH': 'Potassium Hydroxide',
+      'MgO': 'Magnesium Oxide',
+      'CuSO4': 'Copper Sulfate',
+      'AgNO3': 'Silver Nitrate',
+      'ZnCl2': 'Zinc Chloride',
+      'Pb(NO3)2': 'Lead Nitrate',
+      'FeCl3': 'Iron Chloride',
+      'CaCl2': 'Calcium Chloride',
+      'Na2CO3': 'Sodium Carbonate',
+      'K2CO3': 'Potassium Carbonate',
+      'LiOH': 'Lithium Hydroxide',
+      'BaSO4': 'Barium Sulfate',
+      'SrCl2': 'Strontium Chloride',
+      'CsF': 'Cesium Fluoride',
+      'RbBr': 'Rubidium Bromide'
+    }
+    
+    # Choose a formula
+    formula, name = random.choice(list(formulas.items()))
+    
+    # Choose what to ask for
+    question_type = random.choice(['formula', 'name', 'elements'])
+    
+    if question_type == 'formula':
+      memorize = f"Chemical: {name}"
+      prompt = "Formula?"
+      solution = formula
+    elif question_type == 'name':
+      memorize = f"Formula: {formula}"
+      prompt = "Chemical name?"
+      solution = name
+    else:  # elements
+      # Extract elements from formula (simplified)
+      elements = []
+      current = ""
+      for char in formula:
+        if char.isupper():
+          if current:
+            elements.append(current)
+          current = char
+        elif char.islower():
+          current += char
+        elif char.isdigit() or char in '()':
+          continue  # Skip numbers and parentheses for element count
+      if current:
+        elements.append(current)
+      
+      # Remove duplicates and sort
+      elements = sorted(set(elements))
+      
+      memorize = f"Formula: {formula}"
+      prompt = "Elements (space separated)?"
+      solution = " ".join(elements)
+    
+    return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class ChemicalFormula2(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Generate chemical formula memorization problems (simple replay)"""
+    formulas = {
+      'H2O': 'Water',
+      'CO2': 'Carbon Dioxide',
+      'NaCl': 'Sodium Chloride',
+      'H2SO4': 'Sulfuric Acid',
+      'NaOH': 'Sodium Hydroxide',
+      'HCl': 'Hydrochloric Acid',
+      'NH3': 'Ammonia',
+      'CH4': 'Methane',
+      'C6H12O6': 'Glucose',
+      'CaCO3': 'Calcium Carbonate',
+      'Fe2O3': 'Iron Oxide',
+      'Al2O3': 'Aluminum Oxide',
+      'HNO3': 'Nitric Acid',
+      'H3PO4': 'Phosphoric Acid',
+      'KOH': 'Potassium Hydroxide',
+      'MgO': 'Magnesium Oxide',
+      'CuSO4': 'Copper Sulfate',
+      'AgNO3': 'Silver Nitrate',
+      'ZnCl2': 'Zinc Chloride',
+      'Pb(NO3)2': 'Lead Nitrate',
+      'FeCl3': 'Iron Chloride',
+      'CaCl2': 'Calcium Chloride',
+      'Na2CO3': 'Sodium Carbonate',
+      'K2CO3': 'Potassium Carbonate',
+      'LiOH': 'Lithium Hydroxide',
+      'BaSO4': 'Barium Sulfate',
+      'SrCl2': 'Strontium Chloride',
+      'CsF': 'Cesium Fluoride',
+      'RbBr': 'Rubidium Bromide'
+    }
+    
+    formula, name = random.choice(list(formulas.items()))
+    question_type = random.choice(['formula', 'name'])
+    
+    if question_type == 'formula':
+      memorize = formula
+      prompt = "Formula?"
+      solution = formula
+    else:
+      memorize = name
+      prompt = "Chemical name?"
+      solution = name
+      
+    return cls(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
+
+
+class JapaneseWord(Problem):
+  @classmethod
+  def create(cls, **kwargs):
+    """Kanji/Japanese word game: show kanji, ask for pronunciation in Romaji"""
+    
+    words_path = _dict_path('japanese_words.txt')
+    if not words_path.exists():
+        return cls(cls.display_name(), "Error: japanese_words.txt missing", "N/A", "N/A", 3000, 'single line')
+        
+    words = []
+    import csv
+    with open(words_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) >= 3:
+                words.append(row)
+                
+    if not words:
+        return cls(cls.display_name(), "Error: no words found", "N/A", "N/A", 3000, 'single line')
+        
+    kanji, romaji, gloss = random.choice(words)
+    
+    memorize = f"{kanji} | {gloss}"
+    prompt = "Pronunciation (Romaji)?"
+    solution = romaji
+
+    problem = cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+    # The same word can have two readings, such as 家 "house": ie and uchi. A string,
+    # because bridge.py carries only scalar state to the evaluation.
+    problem._readings = '|'.join(r[1] for r in words if r[0] == kanji and r[2] == gloss)
+    return problem
+
+  def evaluate_solution(self, user_input):
+    """Accept each reading of the word."""
+    if user_input is None:
+      return 0.0
+    readings = getattr(self, '_readings', self.solution).split('|')
+    if normalize_answer(user_input) in [normalize_answer(r) for r in readings]:
+      return 1.0
+    return super().evaluate_solution(user_input)
+
+
+class NBack(Problem):
+    """N-back: was the item at position P the same as P-N?"""
+
+    @classmethod
+    def create(cls, n_back=1, seq_length=8, **kwargs):
+        alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+        seq = [random.choice(alphabet) for _ in range(seq_length)]
+        
+        # Balance matches to ~50%
+        is_match = random.random() < 0.5
+        ask_pos = random.randint(n_back + 1, seq_length)
+        match_pos = ask_pos - n_back
+        
+        if is_match:
+            seq[ask_pos - 1] = seq[match_pos - 1]
+        else:
+            # Ensure it's NOT a match
+            while seq[ask_pos - 1] == seq[match_pos - 1]:
+                seq[ask_pos - 1] = random.choice(alphabet)
+        
+        solution = 'yes' if is_match else 'no'
+        memorize = ' '.join(f'{i+1}:{s}' for i, s in enumerate(seq))
+        prompt = f"Position {ask_pos} matches position {match_pos} ({n_back}-back)? (yes/no)"
+        return NBack(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+    def evaluate_solution(self, user_input: str) -> float:
+        if user_input is None:
+            return 0.0
+        normalized = str(user_input).strip().lower()
+        if normalized in ('yes', 'y'):
+            return 1.0 if self.solution.lower() == 'yes' else 0.0
+        if normalized in ('no', 'n'):
+            return 1.0 if self.solution.lower() == 'no' else 0.0
+        return super().evaluate_solution(user_input)
+
+
+class Sternberg(Problem):
+    """Sternberg: was this item in the set?"""
+
+    @classmethod
+    def create(cls, set_size=5, **kwargs):
+        alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+        pool = list(alphabet)
+        set_size = min(set_size, len(pool) - 1)
+        random.shuffle(pool)
+        memory_set = pool[:set_size]
+        non_members = pool[set_size:]
+        probe = random.choice(memory_set) if random.random() < 0.5 else random.choice(non_members)
+        in_set = probe in memory_set
+        solution = 'yes' if in_set else 'no'
+
+        memorize = ' '.join(memory_set)
+        prompt = f"Was '{probe}' in the set? (yes/no)"
+        return Sternberg(cls.display_name(), memorize, prompt, solution, 3500, 'single line')
+
+    def evaluate_solution(self, user_input: str) -> float:
+        if user_input is None:
+            return 0.0
+        normalized = str(user_input).strip().lower()
+        if normalized in ('yes', 'y'):
+            return 1.0 if self.solution.lower() == 'yes' else 0.0
+        if normalized in ('no', 'n'):
+            return 1.0 if self.solution.lower() == 'no' else 0.0
+        return super().evaluate_solution(user_input)
+
+
+class MatrixMemory(Problem):
+    """Spatial grid: which cell was marked?"""
+
+    @classmethod
+    def create(cls, grid_size=3, **kwargs):
+        cells = [(r, c) for r in range(grid_size) for c in range(grid_size)]
+        # Mark only 1 cell to avoid ambiguity in "recall which cell was marked"
+        marked_cell = random.choice(cells)
+
+        rows = []
+        for r in range(grid_size):
+            row = []
+            for c in range(grid_size):
+                row.append('X' if (r, c) == marked_cell else '.')
+            rows.append(' '.join(row))
+        memorize = '\n'.join(rows)
+
+        col_letter = chr(ord('A') + marked_cell[1])
+        row_num = marked_cell[0] + 1
+        prompt = "Which cell was marked?"
+        solution = f"{col_letter}{row_num}"
+        return cls(cls.display_name(), memorize, prompt, solution, 3000, 'matrix')
+
+    def evaluate_solution(self, user_input: str) -> float:
+        if user_input is None:
+            return 0.0
+        normalized = unidecode(str(user_input).strip().upper().replace(' ', ''))
+        sol = self.solution.upper()
+        if normalized == sol:
+            return 1.0
+        if len(normalized) >= 2 and len(sol) >= 2 and normalized == sol[1] + sol[0]:
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class ShoppingList(Problem):
+    """Shopping list with quantities."""
+
+    @classmethod
+    def create(cls, num_items=4, **kwargs):
+        with open(_dict_path('shopping_list.txt')) as f:
+            wlist = [line.strip() for line in f if line.strip()]
+            
+        sample = random.sample(wlist, min(num_items, len(wlist)))
+        # Ensure unique quantities to avoid ambiguity in reverse lookup
+        quantities = random.sample(range(1, 10), len(sample))
+        pairs = list(zip(quantities, sample))
+        memorize = '\n'.join(f'{q} {w}' for q, w in pairs)
+        chosen = random.randint(0, len(sample) - 1)
+        if random.random() < 0.5:
+            prompt = f"Quantity of {pairs[chosen][1]}?"
+            solution = str(pairs[chosen][0])
+        else:
+            prompt = f"Item for quantity {pairs[chosen][0]}?"
+            solution = pairs[chosen][1]
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+
+class ColorSequence(Problem):
+    """Remember a sequence of colors (R=red, G=green, B=blue, Y=yellow)."""
+
+    @classmethod
+    def create(cls, seq_length=5, **kwargs):
+        colors = ['R', 'G', 'B', 'Y']
+        seq = [random.choice(colors) for _ in range(seq_length)]
+        memorize = ' '.join(seq)
+        if random.random() < 0.5:
+            ask_pos = random.randint(1, seq_length)
+            prompt = f"Color at position {ask_pos}?"
+            solution = seq[ask_pos - 1]
+        else:
+            prompt = "Full sequence?"
+            solution = ' '.join(seq)
+        return ColorSequence(cls.display_name(), memorize, prompt, solution, 3000, 'single line')
+
+    def evaluate_solution(self, user_input: str) -> float:
+        if user_input is None:
+            return 0.0
+        names = {'red': 'r', 'green': 'g', 'blue': 'b', 'yellow': 'y'}
+        if _color_letters(user_input, names) == _color_letters(self.solution, names):
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class SentenceCompletion(Problem):
+    """Memorize a headline, recall the missing word."""
+
+    _fallback_templates: ClassVar[list[tuple[str, str]]] = [
+        ("The cat sat on the ___", "mat"),
+        ("She went to the ___ to buy milk", "store"),
+        ("He opened the ___ and looked inside", "box"),
+        ("The sun rises in the ___", "east"),
+        ("Birds fly south for the ___", "winter"),
+        ("The ___ is closed today", "post office"),
+        ("She bought ___ at the market", "fresh bread"),
+    ]
+
+    @classmethod
+    def create(cls, **kwargs):
+        headlines = fetch_gnews_headlines(topic="general", max_items=10)
+        if headlines:
+            used = used_headlines()
+            unused = [h for h in headlines if h not in used]
+            if unused:
+                sentence = random.choice(unused)
+                mark_headline_used(sentence)
+                words_list = [w for w in sentence.split() if len(w) >= 2 and sum(c.isalpha() for c in w) >= 2]
+                if len(words_list) >= 3:
+                    use_two_words = len(words_list) >= 4 and random.random() < 0.3
+                    if use_two_words:
+                        i = random.randint(0, len(words_list) - 2)
+                        w1, w2 = words_list[i], words_list[i + 1]
+                        solution = f"{w1} {w2}"
+                        pattern = re.escape(w1) + r"\s+" + re.escape(w2)
+                    else:
+                        solution = random.choice(words_list)
+                        pattern = re.escape(solution)
+                    # Match whole whitespace-separated words only, so "at" does
+                    # not blank the end of "What".
+                    prompt = re.sub(r"(?<!\S)" + pattern + r"(?!\S)", "___", sentence, count=1)
+                    if "___" in prompt and solution:
+                        return cls(cls.display_name(), sentence, prompt, solution, 4000, 'single line')
+        sentence_tpl, word = random.choice(SentenceCompletion._fallback_templates)
+        memorize = sentence_tpl.replace("___", word)
+        return cls(cls.display_name(), memorize, sentence_tpl, word, 4000, 'single line')
+
+    @staticmethod
+    def _without_punctuation(text):
+        kept = ''.join(c for c in normalize_answer(text) if c.isalnum() or c.isspace())
+        return ' '.join(kept.split())
+
+    def evaluate_solution(self, user_input):
+        """Ignore punctuation: the blank of "rates," has the answer "rates"."""
+        if user_input is None:
+            return 0.0
+        if self._without_punctuation(user_input) == self._without_punctuation(self.solution):
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class NumberBackward(Problem):
+    """Digit span backward: recall digits in reverse order."""
+
+    @classmethod
+    def create(cls, number_length=6, **kwargs):
+        memorize = rnd_number(number_length)
+        solution = memorize[::-1]
+        return cls(cls.display_name(), memorize, '<', solution, 3500, 'single line')
+
+
+class NameAttributePairs(Problem):
+    """Name:City or Name:Profession pairs."""
+
+    @classmethod
+    def create(cls, num_pairs=3, **kwargs):
+        wlist = _pick_word_list(2 * num_pairs)
+        words_pool = random.sample(wlist, 2 * num_pairs)
+        names = words_pool[:num_pairs]
+        attrs = words_pool[num_pairs:]
+        pairs = list(zip(names, attrs))
+        memorize = '\n'.join(f'{n}:{a}' for n, a in pairs)
+        chosen = random.randint(0, num_pairs - 1)
+        prompt = f"? {pairs[chosen][0]}"
+        solution = pairs[chosen][1]
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+
+class PlayingCardSequence(Problem):
+    """Memorize a sequence of playing cards."""
+    
+    @classmethod
+    def create(cls, seq_length=4, **kwargs):
+        suits = ['♠', '♥', '♣', '♦']
+        ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+        
+        cards = []
+        while len(cards) < seq_length:
+            card = f"{random.choice(suits)}{random.choice(ranks)}"
+            if card not in cards:
+                cards.append(card)
+                
+        memorize = ' '.join(cards)
+        
+        hint = "(rank and suit letter, e.g. 10H)"
+        if random.random() < 0.5:
+            # Ask for Nth card
+            ask_pos = random.randint(1, seq_length)
+            prompt = f"Card at position {ask_pos}? {hint}"
+            solution = cards[ask_pos - 1]
+        else:
+            # Ask for card after X
+            ask_pos = random.randint(0, seq_length - 2)
+            prompt = f"Card after {cards[ask_pos]}? {hint}"
+            solution = cards[ask_pos + 1]
+            
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+    _WORDS: ClassVar[dict[str, str]] = {
+        '♠': 's', 'spade': 's', 'spades': 's',
+        '♥': 'h', 'heart': 'h', 'hearts': 'h',
+        '♣': 'c', 'club': 'c', 'clubs': 'c',
+        '♦': 'd', 'diamond': 'd', 'diamonds': 'd',
+        'ace': 'a', 'jack': 'j', 'queen': 'q', 'king': 'k', 'of': '',
+    }
+
+    @classmethod
+    def _parse_card(cls, text):
+        """Read '♠A', 'AS', 'SA', 'a s' or 'ace of spades' as ('a', 's'). None if unreadable."""
+        text = str(text).strip().lower()
+        for glyph in '♠♥♣♦':
+            text = text.replace(glyph, f' {glyph} ')
+        compact = ''.join(cls._WORDS.get(word, word) for word in text.split())
+        match = (re.fullmatch(r'(10|[2-9ajqk])([shcd])', compact)
+                 or re.fullmatch(r'([shcd])(10|[2-9ajqk])', compact))
+        if not match:
+            return None
+        first, second = match.groups()
+        return (second, first) if first in 'shcd' else (first, second)
+
+    def evaluate_solution(self, user_input):
+        """Accept a suit letter or word in place of the glyph: the terminal
+        trainer can only read ASCII keys."""
+        if user_input is None:
+            return 0.0
+        expected = self._parse_card(self.solution)
+        if expected is not None and self._parse_card(user_input) == expected:
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class PeopleDetails(Problem):
+    """Memorize details about people."""
+    
+    @classmethod
+    def create(cls, num_people=2, **kwargs):
+        names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Hank']
+        professions = ['Doctor', 'Chef', 'Teacher', 'Engineer', 'Artist', 'Pilot', 'Lawyer', 'Nurse']
+        cities = ['Boston', 'Seattle', 'London', 'Paris', 'Tokyo', 'Berlin', 'Austin', 'Denver']
+        
+        chosen_names = random.sample(names, num_people)
+        chosen_prof = random.sample(professions, num_people)
+        chosen_cities = random.sample(cities, num_people)
+        ages = [random.randint(25, 60) for _ in range(num_people)]
+        
+        people = []
+        memorize_lines = []
+        for i in range(num_people):
+            people.append({
+                'name': chosen_names[i],
+                'age': ages[i],
+                'prof': chosen_prof[i],
+                'city': chosen_cities[i]
+            })
+            memorize_lines.append(f"{i+1}. {chosen_names[i]} ({ages[i]}, {chosen_prof[i]}, {chosen_cities[i]})")
+            
+        memorize = '  |  '.join(memorize_lines)
+        
+        ask_idx = random.randint(0, num_people - 1)
+        ask_person = people[ask_idx]
+        
+        question_type = random.choice(['age', 'prof', 'city'])
+        if question_type == 'age':
+            prompt = f"{ask_person['name']}'s age?"
+            solution = str(ask_person['age'])
+        elif question_type == 'prof':
+            prompt = f"{ask_person['name']}'s profession?"
+            solution = ask_person['prof']
+        else:
+            prompt = f"Where is {ask_person['name']} from?"
+            solution = ask_person['city']
+            
+        return cls(cls.display_name(), memorize, prompt, solution, 6000, 'matrix')
+
+
+class SpatialGrid(Problem):
+    """Memorize emojis at 2D coordinates."""
+
+    # A name for each emoji, so the answer can be typed on any keyboard.
+    EMOJI_NAMES: ClassVar[dict[str, str]] = {
+        '🍎': 'apple', '🚗': 'car', '🐶': 'dog', '⭐': 'star',
+        '🎸': 'guitar', '⚽': 'ball', '⏰': 'clock', '🚲': 'bike',
+    }
+    
+    @classmethod
+    def create(cls, num_items=3, **kwargs):
+        chosen_emojis = random.sample(list(cls.EMOJI_NAMES), num_items)
+        
+        coords = []
+        while len(coords) < num_items:
+            x = random.randint(0, 4)
+            y = random.randint(0, 4)
+            if (x, y) not in coords:
+                coords.append((x, y))
+                
+        items = list(zip(coords, chosen_emojis))
+        memorize = '  |  '.join(f"({x},{y}): {e}" for ((x, y), e) in items)
+        
+        ask_idx = random.randint(0, num_items - 1)
+        if random.random() < 0.5:
+            names = ', '.join(cls.EMOJI_NAMES.values())
+            prompt = f"What is at {items[ask_idx][0]}? (emoji or name: {names})"
+            solution = items[ask_idx][1]
+        else:
+            prompt = f"Coordinates of {items[ask_idx][1]} (x,y)?"
+            solution = f"{items[ask_idx][0][0]},{items[ask_idx][0][1]}"
+            
+        return cls(cls.display_name(), memorize, prompt, solution, 5000, 'single line')
+        
+    def evaluate_solution(self, user_input: str) -> float:
+        if user_input is None:
+            return 0.0
+        # For coordinates, strip out parentheses if the user typed them
+        normalized = str(user_input).strip().replace('(', '').replace(')', '').replace(' ', '')
+        sol_normalized = self.solution.replace('(', '').replace(')', '').replace(' ', '')
+        if normalized == sol_normalized:
+            return 1.0
+        name = self.EMOJI_NAMES.get(self.solution)
+        if name is not None and normalized.lower() == name:
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class InventoryQuantities(Problem):
+    """Memorize realistic shopping list with quantities and units."""
+    
+    @classmethod
+    def create(cls, num_items=3, **kwargs):
+        items_db = [
+            ('Apples', 'x'), ('Flour', 'g'), ('Milk', 'L'), ('Eggs', 'x'),
+            ('Rice', 'kg'), ('Sugar', 'g'), ('Water', 'L'), ('Bread', 'x')
+        ]
+        chosen = random.sample(items_db, num_items)
+        
+        inventory = []
+        for item, unit in chosen:
+            if unit == 'x':
+                qty = random.randint(1, 12)
+            elif unit == 'g':
+                qty = random.choice([100, 200, 250, 500, 750, 1000])
+            elif unit == 'kg':
+                qty = random.choice([1, 2, 5])
+            elif unit == 'L':
+                qty = random.choice([1, 2, 3])
+            inventory.append((qty, unit, item))
+            
+        memorize = '\n'.join(f"{qty}{unit} {item}" for qty, unit, item in inventory)
+        
+        ask_idx = random.randint(0, num_items - 1)
+        ask_item = inventory[ask_idx]
+        
+        prompt = f"How much {ask_item[2]}? (include unit)"
+        solution = f"{ask_item[0]}{ask_item[1]}"
+
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'multiline')
+
+    def evaluate_solution(self, user_input):
+        """Accept a space between the quantity and the unit: '2 L' is '2L'."""
+        if user_input is None:
+            return 0.0
+        if ''.join(str(user_input).lower().split()) == self.solution.lower():
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class ChessMoves(Problem):
+    """Memorize a short sequence of chess moves."""
+    
+    @classmethod
+    def create(cls, **kwargs):
+        openings = [
+            ("e4", "e5", "Nf3", "Nc6"),
+            ("d4", "d5", "c4", "c6"),
+            ("e4", "c5", "Nf3", "d6"),
+            ("e4", "e6", "d4", "d5"),
+            ("d4", "Nf6", "c4", "e6")
+        ]
+        moves = random.choice(openings)
+        
+        memorize = f"1. {moves[0]} {moves[1]}  2. {moves[2]} {moves[3]}"
+        
+        questions = [
+            ("White's 1st move?", moves[0]),
+            ("Black's 1st move?", moves[1]),
+            ("White's 2nd move?", moves[2]),
+            ("Black's 2nd move?", moves[3])
+        ]
+        
+        prompt, solution = random.choice(questions)
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+
+class SimonColorSequence(Problem):
+    """Memorize a sequence of colored squares using emojis."""
+    
+    @classmethod
+    def create(cls, seq_length=5, **kwargs):
+        color_emojis = {'🟥': 'R', '🟩': 'G', '🟦': 'B', '🟨': 'Y', '🟪': 'P'}
+        seq = [random.choice(list(color_emojis.keys())) for _ in range(seq_length)]
+        
+        memorize = ' '.join(seq)
+        
+        if random.random() < 0.5:
+            ask_pos = random.randint(1, seq_length)
+            prompt = f"Color at position {ask_pos}? (R/G/B/Y/P)"
+            solution = color_emojis[seq[ask_pos - 1]]
+        else:
+            prompt = "Full sequence? (e.g. RGBY)"
+            solution = ''.join(color_emojis[c] for c in seq)
+
+        return cls(cls.display_name(), memorize, prompt, solution, 4000, 'single line')
+
+    def evaluate_solution(self, user_input):
+        if user_input is None:
+            return 0.0
+        names = {'red': 'r', 'green': 'g', 'blue': 'b', 'yellow': 'y', 'purple': 'p'}
+        if _color_letters(user_input, names) == _color_letters(self.solution, names):
+            return 1.0
+        return super().evaluate_solution(user_input)
+
+
+class TwoBackRecall(Problem):
+    """N-back recall: recall the actual item 2 steps back."""
+    
+    @classmethod
+    def create(cls, round_num=1, **kwargs):
+        import json
+        import os
+        import tempfile
+        history_file = os.path.join(tempfile.gettempdir(), 'memory_twoback.json')
+        if int(round_num) == 1:
+            history = []
+        else:
+            try:
+                with open(history_file, 'r') as f:
+                    history = json.load(f)
+            except (OSError, ValueError):
+                history = []
+            if not isinstance(history, list):
+                history = []
+
+        words_list = _pick_word_list(4)
+        
+        if random.random() < 0.5:
+            current = random.choice(words_list)
+        else:
+            current = rnd_number(6)
+            
+        history.append(current)
+        with open(history_file, 'w') as f:
+            json.dump(history, f)
+        
+        if len(history) >= 3:
+            solution = history[-3]
+            # In mixed mode, the rounds of other games do not count.
+            prompt = "Two Back Recall: what was the item 2 rounds ago in this game?"
+            is_scored = True
+        else:
+            solution = "none"
+            prompt = "Warmup round (no 2-back item yet). Press Enter to continue."
+            is_scored = False
+            
+        memorize = current
+        pb = TwoBackRecall(cls.display_name(), memorize, prompt, str(solution), 4000, 'single line')
+        pb.is_scored = is_scored
+        return pb
+
+
+def create_problems_dict():
+  """Automatically discover all Problem subclasses and assign equal probability"""
+  import inspect
+  
+  # Get current module (problems module)
+  current_module = inspect.getmodule(inspect.currentframe())
+  problem_classes = []
+  
+  for name in dir(current_module):
+    obj = getattr(current_module, name)
+    if (inspect.isclass(obj) and 
+        issubclass(obj, Problem) and 
+        obj != Problem and
+        hasattr(obj, 'create')):
+      problem_classes.append(obj)
+  
+  if problem_classes:
+    equal_prob = 1.0 / len(problem_classes)
+    return {cls: equal_prob for cls in problem_classes}
+  else:
+    return {}

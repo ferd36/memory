@@ -1,0 +1,190 @@
+/*
+ * No remote @import: index.html sets `style-src 'self'`, so a stylesheet
+ * fetched from fonts.googleapis.com is blocked by the CSP and the font never
+ * applies. A desktop app should not depend on the network to render text
+ * either. This system stack resolves to Inter where it is installed.
+ */
+:root {
+  --font-stack: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                'Helvetica Neue', Arial, sans-serif;
+}
+
+:root {
+  --bg-color: #0f172a;
+  --text-color: #f8fafc;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --card-bg: rgba(30, 41, 59, 0.7);
+  --border: rgba(255, 255, 255, 0.1);
+  --success: #10b981;
+  --error: #ef4444;
+  --warning: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-stack);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  background-image: radial-gradient(circle at top left, rgba(59, 130, 246, 0.2), transparent 400px),
+                    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.1), transparent 400px);
+}
+
+#root {
+  width: 100%;
+  max-width: 1000px;
+  padding: 2rem;
+}
+
+.card {
+  background: var(--card-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+  font-weight: 800;
+  background: linear-gradient(to right, #60a5fa, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+.btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0.5rem;
+}
+
+.btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.memorize-text {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 3rem 0;
+  letter-spacing: 2px;
+}
+
+.memorize-text.multiline {
+  font-size: 1.75rem;
+  letter-spacing: 1px;
+  line-height: 1.6;
+  text-align: left;
+  display: inline-block;
+}
+
+.matrix-grid {
+  border-collapse: collapse;
+  margin: 0 auto;
+  font-size: 2rem;
+}
+
+.matrix-grid th {
+  padding: 0.5rem 1rem;
+  color: #888;
+  font-weight: normal;
+  font-size: 1.25rem;
+}
+
+.matrix-grid td {
+  border: 2px solid rgba(255,255,255,0.2);
+  padding: 1rem 1.5rem;
+  text-align: center;
+  width: 4rem;
+  height: 4rem;
+}
+
+.matrix-grid td.marked {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 2rem;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary);
+  width: 100%;
+  transform-origin: left;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  color: white;
+  padding: 1rem;
+  font-size: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+  margin: 2rem 0;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  border-color: var(--primary);
+}
+
+.feedback {
+  font-size: 2rem;
+  font-weight: 800;
+  margin: 2rem 0;
+}
+
+.feedback.correct { color: var(--success); }
+.feedback.incorrect { color: var(--error); }
+.warning { color: var(--warning); }

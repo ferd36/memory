@@ -2,8 +2,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 .DS_Store
-data/training_sessions.json
-data/training_sessions.json.gzip
+# Personal training history, its backups and temporary files
+py_app/data/
+# Build output and dependencies
+js_app/dist/
+js_app/dist-electron/
+node_modules/
 .vscode/
 .idea/
 *.swp
